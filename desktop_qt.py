@@ -1354,7 +1354,9 @@ class MainWindow(QMainWindow):
             text += ' · ' + display_text(' '.join(status['detail'].split()))
         self._tray_release_action.setText(text)
         self._tray_release_action.setVisible(bool(text))
-        self.tray.setToolTip(f'{WINDOW_TITLE}\n{text}' if text else WINDOW_TITLE)
+        tooltip = f'{WINDOW_TITLE}\n{text}' if text else WINDOW_TITLE
+        if self.tray.toolTip() != tooltip:
+            self.tray.setToolTip(tooltip)
 
     def tray_control_guard(self):
         if self._tray_hidden:
@@ -2341,7 +2343,7 @@ class MainWindow(QMainWindow):
             return '时间不可用'
 
     def closeEvent(self, event):
-        if not self._quitting:
+        if not self._quitting and not getattr(QApplication.instance(), 'dispatching_quit', False):
             event.ignore()
             if self.notebook is not None and not self.notebook.flush():
                 return
@@ -2356,6 +2358,20 @@ class MainWindow(QMainWindow):
             return
         self.shutdown()
         event.accept()
+
+
+class DesktopApplication(QApplication):
+    dispatching_quit = False
+
+    def event(self, event):
+        if event.type() != QEvent.Type.Quit:
+            return super().event(event)
+        # Qt closes top-level windows before it emits aboutToQuit.
+        self.dispatching_quit = True
+        try:
+            return super().event(event)
+        finally:
+            self.dispatching_quit = False
 
 
 def select_legacy_data(candidates):
@@ -2403,7 +2419,7 @@ def choose_workspace_startup(workspace):
 
 
 def main():
-    app = QApplication(sys.argv)
+    app = DesktopApplication(sys.argv)
     instance_key = 'CodexMobileMonitor.QtDesktop'
     verification = False
     probe = os.environ.get('LANXI_VERIFICATION_INSTANCE', '')
