@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from codex_activity import COMMAND_DELTA, MESSAGE_DELTA, OUTPUT_LIMIT, CodexActivity, terminal_text
 from codex_history import read_codex_conversation
-from conversation import read_conversation
+from conversation import MESSAGE_LIMIT, read_conversation
 from reply_log import ReplyLog
 from tests.test_codex_history import THREAD, OTHER, line, message
 
@@ -90,3 +90,12 @@ class CodexActivityTests(unittest.TestCase):
         self.record(MESSAGE_DELTA, itemId='reply', delta='reply')
         self.record('item/completed', item=dict(type='agentMessage', id='reply', text='reply'))
         self.assertEqual([item['text'] for item in self.messages()], ['reply'])
+
+    def test_commands_leave_an_unflushed_assistant_delta_in_live_cache(self):
+        self.record(MESSAGE_DELTA, itemId='reply', delta='still writing')
+        for number in range(MESSAGE_LIMIT + 1):
+            self.record('item/completed', item=dict(id=f'cmd-{number}', type='commandExecution',
+                                                     status='completed', command='fixture'))
+        active = self.activity.snapshot(THREAD)
+        self.assertEqual(sum(item['role'] == 'process' for item in active), MESSAGE_LIMIT)
+        self.assertEqual([item['text'] for item in active if item['role'] == 'assistant'], ['still writing'])

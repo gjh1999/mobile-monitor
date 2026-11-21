@@ -113,8 +113,10 @@ class CodexActivity:
             else:
                 return
             items[key] = entry
-            if len(items) > MESSAGE_LIMIT:
-                del items[next(iter(items))]
+            if previous is None and len(items) > MESSAGE_LIMIT:
+                same_role = [item_key for item_key, value in items.items() if value['role'] == entry['role']]
+                if len(same_role) > MESSAGE_LIMIT:
+                    del items[same_role[0]]
             self._changed(thread, items)
 
     @staticmethod
