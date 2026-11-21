@@ -102,7 +102,7 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
         return rpc
 
     def test_waits_for_rpc_and_sync_then_releases_eligible_tasks_across_projects(self):
-        from tray_release import CodexTrayRelease
+        from tray_release import CodexTrayRelease, release_step
 
         one, two = "owner/one", "owner/two"
         first, first_key, first_envelope, first_checksum = self.session(one)
@@ -125,19 +125,20 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
         synchronized = Future()
         with patch.object(self.flow, "request_manual_sync", return_value=synchronized) as request_sync:
             release = CodexTrayRelease()
+            step = lambda connection: release_step(lambda: release.step(connection, self.flow, []))
             with patch.object(self.source.client.opener, "open", side_effect=URLError("offline")):
-                self.assertNotEqual(release.step(rpc, self.flow, [])[0], "released")
+                self.assertNotEqual(step(rpc)[0], "released")
             self.assertEqual(self.receiver.request()["tasks"], expected)
 
-            release.step(rpc, self.flow, [])
+            step(rpc)
             states[first] = "idle"
-            release.step(rpc, self.flow, [])
+            step(rpc)
             rpc.p.stdin.close.assert_not_called()
             request_sync.assert_not_called()
             self.assertEqual(self.receiver.request()["tasks"], expected)
 
             self.assertEqual(rpc.approvals.decide(token, False), "denied")
-            release.step(rpc, self.flow, [])
+            step(rpc)
             rpc.p.stdin.close.assert_called_once()
             request_sync.assert_called_once_with(fresh=True)
             self.assertEqual(self.receiver.request()["tasks"], expected)
@@ -145,12 +146,13 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             self.records.put(first_key, EMPTY, first_envelope)
             self.records.put(second_key, EMPTY, second_envelope)
             self.flow.status.update({one: "已同步", two: "已同步"})
-            synchronized.set_result({})
+            synchronized.set_result({"status": self.flow.status.copy(), "memoryChecked": True,
+                                     "connection": "已连接协调服务"})
             with patch.object(self.source.client.opener, "open", side_effect=URLError("offline again")):
-                self.assertNotEqual(release.step(None, self.flow, [])[0], "released")
+                self.assertNotEqual(step(None)[0], "released")
             self.assertEqual(self.receiver.request()["tasks"], expected)
 
-            state, pending, detail = release.step(None, self.flow, [])
+            state, pending, detail = step(None)
             self.assertEqual((state, pending), ("waiting", 1), detail)
             self.assertEqual(self.receiver.request()["tasks"], {missing: "a", other: "b"})
             self.assertEqual(self.receiver.request("/" + first),
@@ -163,5 +165,5 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             self.source.event(two, editor, "vscode", 2, "close")
             self.claim(self.receiver, second, two, second_checksum)
 
-            release.step(None, self.flow, [])
+            step(None)
             self.assertEqual(self.receiver.request()["tasks"], {first: "b", second: "b", missing: "a", other: "b"})

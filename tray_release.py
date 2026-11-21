@@ -63,11 +63,12 @@ class TrayRelease:
 
 
 class CodexTrayRelease:
-    def __init__(self, stop=None, continuing=lambda: True):
+    def __init__(self, stop=None, continuing=lambda: True, pending_approval=lambda thread: False):
         self.stop = stop
         self.sync = None
         self.flow = None
         self.continuing = continuing
+        self.pending_approval = pending_approval
 
     def step(self, rpc, flow, drained):
         if rpc is not None and not rpc.drain_for_tray():
@@ -93,19 +94,18 @@ class CodexTrayRelease:
                 self.sync = flow.request_manual_sync(fresh=True)
             if not self.sync.done():
                 return "waiting", len(threads) + writers, "正在等待代码和已完成会话同步。"
-            receipts, errors = flow.handoff_checkpoints(threads)
-            pending = len(threads)
-            for tid, (project, checkpoint) in receipts.items():
-                if not self.continuing() or self.stop is not None and self.stop.is_set():
-                    break
-                try:
-                    locks.handoff_held(tid, project, checkpoint)
-                except RPCError as error:
-                    errors[tid] = error.detail or "服务器尚未确认交还。"
-                else:
-                    pending -= 1
+            if self.sync.cancelled() or self.sync.result() is None:
+                self.sync = None
+                return "waiting", len(threads) + writers, "同步尚未完成，后台将重试。"
+            ready = [tid for tid in threads if not self.pending_approval(tid)]
+            receipts, errors = flow.handoff_checkpoints(
+                ready, handoff=locks.handoff_held,
+                continuing=lambda: self.continuing() and (self.stop is None or not self.stop.is_set()),
+            )
+            pending = len(threads) - len(receipts)
             if pending:
-                detail = next(iter(errors.values()), "等待服务器确认任务交还。")
+                detail = next(iter(errors.values()), "等待待审批的任务结束。" if len(ready) != len(threads)
+                              else "等待服务器确认任务交还。")
                 return "waiting", pending + writers, detail
         if writers:
             return "waiting", writers, "登记项目的写入权等待服务器确认。"
