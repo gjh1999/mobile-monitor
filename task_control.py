@@ -453,6 +453,8 @@ class TaskControl:
             pending = self.db.execute("SELECT id,thread,action,text FROM operations WHERE status='queued'" + condition +
                                       " ORDER BY CASE WHEN action='pause' THEN 0 WHEN action='detach' THEN 1 ELSE 2 END,stamp,rowid LIMIT 8").fetchall()
         for key, tid, action, text in pending:
+            if getattr(rpc, 'closed', False):
+                break
             with self.lock:
                 cur = self.db.execute("UPDATE operations SET status='running' WHERE id=? AND status='queued'", (key,))
                 self.db.commit()
@@ -466,10 +468,13 @@ class TaskControl:
                 result = self._perform(rpc, tid, action, text, key)
                 status = 'succeeded'
             except RPCNotSent:
-                if action in ('message', 'resume') and self._send_allowed(tid, key, action):
-                    status, result = 'queued', '连接中断，指令尚未发送。重连后将继续发送。'
-                else:
-                    status, result = 'cancelled', '连接中断，未执行操作。'
+                with self.lock:
+                    if action in ('message', 'resume') and self._send_allowed(tid, key, action):
+                        status, result = 'queued', '连接中断，指令尚未发送。重连后将继续发送。'
+                    else:
+                        status, result = 'cancelled', '连接中断，未执行操作。'
+                    self._execute("UPDATE operations SET status=?,result=? WHERE id=? AND status='running'", (status, result, key))
+                break
             except (RPCError, ValueError) as error:
                 result = str(error) if isinstance(error, ValueError) else '接口拒绝操作：' + str(error.detail or '')[:300]
                 status = 'failed'
@@ -582,7 +587,7 @@ class TaskControl:
             self.tick_lock.release()
 
     def tick(self, rpc):
-        if not self.tick_lock.acquire(False):
+        if getattr(rpc, 'closed', False) or not self.tick_lock.acquire(False):
             return
         try:
             with self.lock:
@@ -601,6 +606,8 @@ class TaskControl:
                     old = self.runtime.get(tid)
                 if not old or time.time() >= old.get('retryAt', 0):
                     loaded = self._load(rpc, tid)
+                    if getattr(rpc, 'closed', False):
+                        return
                     with self.lock:
                         self.runtime[tid] = loaded
                 current = self.runtime.get(tid, {})
@@ -617,6 +624,9 @@ class TaskControl:
                     with self.lock:
                         current.update(threadStatus=status, goalStatus=goal, checkedAt=time.time())
             self._drain(rpc)
+        except ConnectionError:
+            if not getattr(rpc, 'closed', False):
+                raise
         finally:
             self.tick_lock.release()
 

@@ -219,6 +219,8 @@ class CodexRPC(UniversalRPC):
         with self.lock:
             if not self.control_allowed():
                 raise ControlDenied(detail='任务控制暂停，正在交还本机写入权。')
+            if self.closed:
+                raise RPCNotSent('RPC disconnected before send')
             self.control_pending += 1
         try:
             initial_guard = params.get('_sendGuard')
@@ -244,7 +246,12 @@ class CodexRPC(UniversalRPC):
         if thread and not reading and self.personal_flow:
             flow = self.personal_flow()
             locks = flow.task_locks() if flow else None
-            project = self.personal_project(thread, params.get('cwd')) if locks else None
+            try:
+                project = self.personal_project(thread, params.get('cwd')) if locks else None
+            except ConnectionError as error:
+                if self.closed:
+                    raise RPCNotSent('RPC disconnected while identifying the project before send') from error
+                raise
             if project:
                 previous = params.get('_sendGuard')
 
@@ -270,7 +277,12 @@ class CodexRPC(UniversalRPC):
         if method not in ('turn/start', 'turn/steer', 'thread/goal/set', 'thread/resume', 'thread/settings/update'):
             return super().call(method, params, timeout)
         thread = params['threadId']
-        project = writes.project_for(self, thread, params.get('cwd'))
+        try:
+            project = writes.project_for(self, thread, params.get('cwd'))
+        except ControlDenied as error:
+            if self.closed and isinstance(error.__cause__, ConnectionError):
+                raise RPCNotSent('RPC disconnected while identifying the project before send') from error
+            raise
         if project is None:
             result = super().call(method, params, timeout)
             if method == 'thread/resume':
@@ -312,9 +324,8 @@ class CodexRPC(UniversalRPC):
                 turn = params.get('expectedTurnId')
             confirmed = method not in ('turn/start', 'turn/steer') or bool(turn)
             return result
-        except RPCError:
-            # An explicit RPC error settles a sent request. A refused preflight
-            # never created a new local reservation for this request.
+        except (RPCError, RPCNotSent):
+            # An explicit reply or a refusal before writing settles this request.
             confirmed = True
             raise
         finally:
