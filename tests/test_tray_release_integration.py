@@ -1,6 +1,7 @@
 """Exercise tray handoff with two devices on an isolated personal coordinator."""
 
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -22,6 +23,7 @@ from personal_sync import PersonalSync
 from universal_rpc import CodexRPC
 
 
+@unittest.skipUnless(sys.platform == "win32", "Native Codex writer locking requires Windows")
 class TrayReleaseIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -54,8 +56,8 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "等待隔离协调服务启动超时")
             time.sleep(0.02)
 
-    def session(self, project):
-        tid = str(uuid4())
+    def session(self, project, tid=None):
+        tid = tid or str(uuid4())
         home = self.flow.home / "sessions/2026/11/21"
         home.mkdir(parents=True, exist_ok=True)
         path = home / f"rollout-2026-11-21T12-00-00-{tid}.jsonl"
@@ -102,7 +104,8 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
         return rpc
 
     def test_waits_for_rpc_and_sync_then_releases_eligible_tasks_across_projects(self):
-        from tray_release import CodexTrayRelease, release_step
+        import msvcrt
+        from tray_release import CodexTrayRelease, TrayRelease, release_step
 
         one, two = "owner/one", "owner/two"
         first, first_key, first_envelope, first_checksum = self.session(one)
@@ -122,10 +125,16 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             "id": 1, "method": "item/commandExecution/requestApproval",
             "params": {"threadId": second, "command": "fixture"},
         })
-        synchronized = Future()
-        with patch.object(self.flow, "request_manual_sync", return_value=synchronized) as request_sync:
-            release = CodexTrayRelease()
-            step = lambda connection: release_step(lambda: release.step(connection, self.flow, []))
+        failed, synchronized = Future(), Future()
+        gate = TrayRelease()
+        gate.set(True)
+        generation = gate.begin("codex")
+        release = CodexTrayRelease(continuing=lambda: gate.continuing(generation))
+
+        def step(connection):
+            return release_step(lambda: release.step(connection, self.flow, []))
+
+        with patch.object(self.flow, "request_manual_sync", side_effect=[failed, synchronized]) as request_sync:
             with patch.object(self.source.client.opener, "open", side_effect=URLError("offline")):
                 self.assertNotEqual(step(rpc)[0], "released")
             self.assertEqual(self.receiver.request()["tasks"], expected)
@@ -146,11 +155,26 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             self.records.put(first_key, EMPTY, first_envelope)
             self.records.put(second_key, EMPTY, second_envelope)
             self.flow.status.update({one: "已同步", two: "已同步"})
+            failed.set_result(None)
+            self.assertNotEqual(step(None)[0], "released")
+            self.assertEqual(self.receiver.request()["tasks"], expected)
+            self.assertNotEqual(step(None)[0], "released")
+            self.assertEqual(request_sync.call_count, 2)
+
             synchronized.set_result({"status": self.flow.status.copy(), "memoryChecked": True,
                                      "connection": "已连接协调服务"})
             with patch.object(self.source.client.opener, "open", side_effect=URLError("offline again")):
                 self.assertNotEqual(step(None)[0], "released")
             self.assertEqual(self.receiver.request()["tasks"], expected)
+
+            writers = self.flow.home / "thread-writer-locks"
+            writers.mkdir(exist_ok=True)
+            with (writers / (second + ".lock")).open("a+b") as writer:
+                msvcrt.locking(writer.fileno(), msvcrt.LK_NBLCK, 1)
+                state, pending, detail = step(None)
+                self.assertEqual((state, pending), ("waiting", 2), detail)
+                self.assertEqual(self.receiver.request()["tasks"], {second: "a", missing: "a", other: "b"})
+                msvcrt.locking(writer.fileno(), msvcrt.LK_UNLCK, 1)
 
             state, pending, detail = step(None)
             self.assertEqual((state, pending), ("waiting", 1), detail)
@@ -165,5 +189,11 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
             self.source.event(two, editor, "vscode", 2, "close")
             self.claim(self.receiver, second, two, second_checksum)
 
-            step(None)
+            _, missing_key, missing_envelope, _ = self.session("owner/missing-local", missing)
+            self.records.put(missing_key, EMPTY, missing_envelope)
+            self.flow.status["owner/missing-local"] = "已同步"
+            gate.set(False)
+            gate.finish("codex", generation, step(None))
+            self.assertEqual(gate.status()["state"], "idle")
+            self.assertTrue(gate.control_allowed())
             self.assertEqual(self.receiver.request()["tasks"], {first: "b", second: "b", missing: "a", other: "b"})

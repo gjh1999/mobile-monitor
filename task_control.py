@@ -44,6 +44,16 @@ class TaskControl:
             self.db.execute(sql, params)
             self.db.commit()
 
+    def control_allowed(self):
+        return True
+
+    def disable_for_tray(self):
+        with self.lock, self.db:
+            self.db.execute("UPDATE targets SET enabled=0 WHERE enabled=1")
+            self.db.execute("UPDATE operations SET status='cancelled',result='本机正在交还控制权，未执行操作。' "
+                            "WHERE status='queued'")
+            self.runtime.clear()
+
     def seed(self, targets, managed=True):
         with self.lock:
             for target in targets:
@@ -75,6 +85,8 @@ class TaskControl:
                 if existing != (thread, action, text):
                     raise ValueError('操作编号已用于其他请求。')
                 return key
+            if not self.control_allowed():
+                raise ValueError('本机正在交还控制权，请稍候重新执舟。')
             # Save stop intent before a worker round. Never hold this lock over RPC.
             if action == 'pause':
                 self.db.execute('UPDATE targets SET paused=1 WHERE id=?', (thread,))
@@ -237,7 +249,8 @@ class TaskControl:
         with self.lock:
             row = self.db.execute('SELECT enabled,paused FROM targets WHERE id=?', (tid,)).fetchone()
             stopped_after = self.db.execute("SELECT 1 FROM operations WHERE thread=? AND action IN ('pause','detach') AND rowid>(SELECT rowid FROM operations WHERE id=?) LIMIT 1", (tid, operation)).fetchone()
-            return bool(row and row[0] and not stopped_after and (action == 'resume' or not row[1]))
+            return bool(self.control_allowed() and row and row[0] and not stopped_after
+                        and (action == 'resume' or not row[1]))
 
     def _focus(self, rpc, tid, operation):
         with self.lock:
@@ -436,6 +449,8 @@ class TaskControl:
                 if not cur.rowcount:
                     continue
             try:
+                if not self.control_allowed():
+                    raise ValueError('本机正在交还控制权，未执行操作。')
                 result = self._perform(rpc, tid, action, text, key)
                 status = 'succeeded'
             except (RPCError, ValueError) as error:
@@ -461,6 +476,8 @@ class TaskControl:
                 rows = self.db.execute("SELECT a.thread,a.due,a.revision FROM auto_progress a JOIN targets t ON t.id=a.thread WHERE t.enabled=1 AND t.managed=1 AND t.paused=0 AND a.state='scheduled' AND a.due<=?", (now,)).fetchall()
             for tid, due, previous_revision in rows:
                 def eligible(operation=None):
+                    if not self.control_allowed():
+                        return False
                     with self.lock:
                         target = self.db.execute('SELECT enabled,paused,managed FROM targets WHERE id=?', (tid,)).fetchone()
                         pending = self.db.execute("SELECT 1 FROM operations WHERE thread=? AND status IN ('queued','running') AND id!=? LIMIT 1", (tid, operation or '')).fetchone()
@@ -608,7 +625,7 @@ class TaskControl:
         with self.lock:
             row = self.db.execute('SELECT enabled,paused,managed FROM targets WHERE id=?', (tid,)).fetchone()
             pending = self.db.execute("SELECT 1 FROM operations WHERE thread=? AND status IN ('queued','running') LIMIT 1", (tid,)).fetchone()
-            return bool(row and row[0] and not row[1] and row[2] and not pending and self.connection is rpc and
+            return bool(self.control_allowed() and row and row[0] and not row[1] and row[2] and not pending and self.connection is rpc and
                         tid in getattr(rpc, 'owned_threads', set()) and self.runtime.get(tid, {}).get('canControl'))
 
     def automatic_tasks(self, rpc, tasks):

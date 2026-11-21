@@ -195,6 +195,7 @@ class CodexRPC(UniversalRPC):
     project_writes = None
     personal_flow = None
     handing_off = False
+    control_pending = 0
     control_methods = frozenset({
         'thread/start', 'thread/resume', 'thread/name/set', 'thread/settings/update',
         'thread/goal/set', 'turn/start', 'turn/steer', 'turn/interrupt',
@@ -211,12 +212,21 @@ class CodexRPC(UniversalRPC):
         super().__init__('codex', journal=journal, custom_process=custom_process)
 
     def call(self, method, params, timeout=20):
-        if method in self.control_methods:
+        if method not in self.control_methods:
+            return self._call(method, params, timeout)
+        with self.lock:
             if not self.control_allowed():
                 raise ControlDenied(detail='任务控制暂停，正在交还本机写入权。')
+            self.control_pending += 1
+        try:
             initial_guard = params.get('_sendGuard')
-            params = {**params, '_sendGuard': lambda: self.control_allowed() and
-                      (initial_guard is None or initial_guard())}
+            return self._call(method, {**params, '_sendGuard': lambda: self.control_allowed() and
+                              (initial_guard is None or initial_guard())}, timeout)
+        finally:
+            with self.lock:
+                self.control_pending -= 1
+
+    def _call(self, method, params, timeout):
         automatic_resume = method == 'thread/resume' and not params.get('cwd')
         if automatic_resume and getattr(self, 'personal_session', None):
             session = self.personal_session(params['threadId'])
@@ -402,10 +412,13 @@ class CodexRPC(UniversalRPC):
             return self.p.poll() is not None
         if self.approvals.pending_on(self):
             return False
-        with self.write_lock:
+        with self.write_lock, self.lock:
+            if self.pending or self.control_pending:
+                return False
             writes = self.project_writes.tickets if self.project_writes else {}
             if any(write.pending or write.uncertain for write in writes.values()):
                 return False
+            revisions = {key: write.revision for key, write in writes.items()}
             tracked = {thread: write.turn for (_, thread), write in writes.items()}
             loaded = self.loaded_threads | self.owned_threads
         if not all(ProjectWrites.idle(self, tid, tracked.get(tid), allow_unloaded=True)
@@ -413,7 +426,11 @@ class CodexRPC(UniversalRPC):
             return False
         if self.approvals.pending_on(self):
             return False
-        with self.write_lock:
+        with self.write_lock, self.lock:
+            if (self.pending or self.control_pending or loaded != self.loaded_threads | self.owned_threads
+                    or revisions != {key: write.revision for key, write in writes.items()}
+                    or any(write.pending or write.uncertain for write in writes.values())):
+                return False
             self.draining = True
             self.closed = True
             self.p.stdin.close()
