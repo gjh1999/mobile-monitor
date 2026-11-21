@@ -286,7 +286,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
 
 <section id="current">
   <h2>当前交付与使用</h2>
-  <p><strong>个人版 R43 已发布，已配对设备可从托盘「检查更新」。</strong> Codex 的对话正文和执行札记分别保留，连续执行命令时仍可回看已发送的消息。<a href="DELIVERY_STATUS.md#r43-对话气泡保留">R43 验收记录</a></p>
+  <p><strong>个人版 R44 已发布，已配对设备可从托盘「检查更新」。</strong> 澜汐显示等待重连的发送状态。能确认尚未发送的 Codex 指令会在连接恢复后继续发送。<a href="DELIVERY_STATUS.md#r44-连接恢复后处理待发指令">R44 验收记录</a></p>
   <p><strong>项目扫描、离线任务和合流结果。</strong> 母目录包含 Git 标记时也扫描下级项目。案头按照识别出的本机项目分组，在本机模式下也会列出本机已有的 Codex 会话，包括未匹配项目的会话。笔记本会话在笔记本可本地查看，跨机查看需要两端接入同一个人空间并完成同步。「合流」逐个显示 Git 项目的本机路径和结果。<a href="PERSONAL_SYNC.md#手动同步">操作与排查</a></p>
   <p>项目分组只显示「启卷」时，从「测试 → 项目会话诊断」选择原项目。已配对电脑会按相对路径或 GitHub 仓库标识对照服务器的会话登记。<a href="PORTABLE_CHECK.md#运行验收">项目会话诊断</a></p>
   <p>在「合流」点击「信任 Git 目录并重试」，选择对应的本机仓库。澜汐将该路径加入当前 Windows 用户的 Git <code>safe.directory</code>，再安排下一轮同步。<a href="PERSONAL_SYNC.md#手动同步">手动同步</a></p>
@@ -295,7 +295,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
   <p>通过应用升级的 Windows 版本在当前用户的开始菜单登记「澜汐」。程序运行时，可从托盘选择「打开程序所在目录」。<a href="PORTABLE_CHECK.md#升级与首次配置">升级与重开</a></p>
   <p>关闭主窗口缩到托盘后，澜汐暂停自动接入和推进，并交还此设备持有的任务控制权。正在运行或有待审批的任务在安全交接条件满足后自动交还，托盘继续提供审批和完成提醒。恢复主窗口后，可重新「执舟」已交还的会话。<a href="DESKTOP.md">托盘用法</a></p>
   <p>连续执行命令时，Codex 对话正文和执行札记分别显示最近 50 条。接入原生会话记录时，同一轮的补充输入按内容逐条合并。<a href="DESKTOP.md">桌面使用说明</a></p>
-  <p><strong>R44 连接恢复后的待发指令修复中。</strong> 澜汐区分可以确认未发送和结果未知的指令，并在窗口里显示重连等待状态。</p>
+  <p>澜汐在窗口里显示重连等待状态。已写入 Codex 但缺少回执时，消息显示结果未确认，供用户核对。<a href="DESKTOP.md">桌面使用说明</a></p>
   <p><strong>GitHub 与服务器双份代码同步。</strong> 自动同步与手动「合流」均尝试更新 GitHub，并在同一私人云工作区保存一份可下载的本机代码备份。两个通道分别报告结果。GitHub 不可用时仍可备份已经落盘的本机代码，也可从「跨机接续」下载以前上传的服务器副本。<a href="PERSONAL_SYNC.md#代码的服务器备份">服务器备份</a></p>
   <p><strong>R36 已发布共享审批修复。</strong> 后端在发送同意前核对项目控制权。项目交还或权限转移后拦截旧审批，结果经同一通道返回。独立源码复测通过。Windows 隔离 HTTPS 报告确认配对凭据可保存，协调服务重启后可用保存的凭据重连。包内审批界面已验，实体双机待验。<a href="DELIVERY_STATUS.md#r35-04-测试回执">工单与验收</a></p>
   <p><strong>R36 私人协调服务已启用备份完整性校验。</strong> 修正后的服务先在有界资源内读取并校验所有 ZIP 成员，再替换上一份备份。隔离环境已验证损坏包被拒后仍可下载并恢复旧副本。<a href="DELIVERY_STATUS.md#r35-02">工单与验收</a></p>
@@ -505,7 +505,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
 <section id="personal-release">
   <h2>个人开发与版本发布</h2>
   <p>新 Windows 电脑双击私人发行目录中的 <code>笔记本下载/下载澜汐最新版.cmd</code>，脚本会建立首次启动记录，完成配对，并将最新稳定版 ZIP 下载到同目录。旧脚本已配对的 R36 用户若遇到缺少 <code>desktop-profile.json</code> 的启动错误，用新版脚本重跑一次即可补齐记录，沿用原设备身份。<a href="PORTABLE_CHECK.md">新电脑安装与修复步骤</a></p>
-  <p>本机 <code>release/</code> 根目录保留当前稳定版 ZIP 和开发版 <code>Lanxi.exe</code>，目前稳定版为 R43，开发版基于 R36。新候选包在独立构建目录验收。每次正式发布并核对摘要后，负责人将被替换的稳定版 ZIP 移入 <code>release/history/</code>，按发布日期保留最近两个不同的历史稳定版。验收记录按版本归档。<a href="RUNBOOK.md#构建-exe">保留规则与本机归档</a></p>
+  <p>本机 <code>release/</code> 根目录保留当前稳定版 ZIP 和开发版 <code>Lanxi.exe</code>，目前稳定版为 R44，开发版基于 R36。新候选包在独立构建目录验收。每次正式发布并核对摘要后，负责人将被替换的稳定版 ZIP 移入 <code>release/history/</code>，按发布日期保留最近两个不同的历史稳定版。验收记录按版本归档。<a href="RUNBOOK.md#构建-exe">保留规则与本机归档</a></p>
   <p>用户将需求交给项目负责人「代码review以及发版」。各角色通过项目工单派工、回执、交付和反馈审核结果。负责人按范围向「前端开发」「后端开发」「bug修复」派工，协调接口、依赖与验收条件。开发和修复工程师在工单提交改动及自测结果。测试工程师的对话为「测试」，负责按验收条件设计和执行测试、复现缺陷、验证修复，并报告测试版本、结果和未验证项。负责人集成代码、审核送审版本，结合测试结果核验候选包并决定正式发布。<a href="../AGENTS.md">项目工作约定</a> · <a href="DELIVERY_STATUS.md#项目工单">项目工单</a></p>
   <h3>从修改到发布</h3>
   <ol>
