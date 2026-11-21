@@ -1288,6 +1288,11 @@ def main():
             QTest.mouseClick(window.send_button, Qt.MouseButton.LeftButton)
             assert claude.calls[-1][:3] == (CLAUDE, 'message', '请优先处理这个新指令')
             message_id = claude.calls[-1][3]
+            op = next(o for o in claude.data['operations'] if o['id'] == message_id)
+            op.update(status='queued', message='连接中断，指令尚未发送。重连后将继续发送。')
+            window.refresh()
+            assert '重连后将继续发送' in window.control_message.text()
+            assert window.message_edit.toPlainText() == ''
             QTest.mouseClick(window.action_buttons['pause'], Qt.MouseButton.LeftButton)
             assert claude.calls[-1][1] == 'pause'
             QTest.mouseDClick(window.conversation_heading, Qt.MouseButton.LeftButton)
@@ -1311,7 +1316,6 @@ def main():
             assert window.task_title() == '我自己的任务名'
             # A newer draft must never be overwritten by failure of an earlier send.
             window.message_edit.setPlainText('新的未发送草稿')
-            op = next(o for o in claude.data['operations'] if o['id'] == message_id)
             op.update(status='failed', message='Synthetic send failure ' + CLAUDE)
             window.refresh()
             QTest.qWait(40)

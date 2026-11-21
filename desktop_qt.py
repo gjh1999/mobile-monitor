@@ -1943,13 +1943,18 @@ class MainWindow(QMainWindow):
             previous = states.get(key)
             own = self._pending_operations.get((self.client, key))
             fresh = operation.get('stamp', 0) >= self._started_at
+            if own and own['action'] == 'message' and status in ('queued', 'running'):
+                message = operation.get('message')
+                if message and message != own.get('lastProgress') and own['threadId'] == self.selected_thread:
+                    self.control_message.setText(display_text(message))
+                    own['lastProgress'] = message
             if own and own['action'] == 'message' and status in ('failed', 'unknown', 'cancelled'):
                 if own['threadId'] == self.selected_thread and not self.message_edit.toPlainText():
                     self.message_edit.setPlainText(own['text'])
                 elif own['threadId'] != self.selected_thread:
-                    key = (self.client, own['threadId'])
-                    if not self.task_drafts.get(key):
-                        self.task_drafts[key] = own['text']
+                    draft_key = (self.client, own['threadId'])
+                    if not self.task_drafts.get(draft_key):
+                        self.task_drafts[draft_key] = own['text']
             if status in ('failed', 'unknown') and previous != status and (own or fresh):
                 self._popup('消息发送失败' if operation.get('action') == 'message' else '操作未完成', operation.get('message') or '请检查当前任务状态。')
             if own and status in ('succeeded', 'cancelled', 'failed', 'unknown'):
