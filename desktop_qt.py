@@ -2081,7 +2081,7 @@ class MainWindow(QMainWindow):
             home = hook_home()
             enabled = approval_alerts_installed(monitor.ROOT, home)
             question = ('停用澜汐的 Codex 审批提醒？' if enabled else
-                        '启用本机 Codex 审批提醒？澜汐会添加一个通知 Hook。首次启用后请在 Codex 中审查并信任它。')
+                        '启用或更新本机 Codex 审批提醒？配置完成后请在 Codex 中审查并信任「澜汐审批提醒」。')
             if QMessageBox.question(self, 'VS Code 审批提醒', question) != QMessageBox.StandardButton.Yes:
                 return
             configure_approval_alerts(monitor.ROOT, home, not enabled)
@@ -2094,7 +2094,7 @@ class MainWindow(QMainWindow):
             self._popup('审批提醒已配置',
                         '重启 VS Code，在 Codex 输入框旁的 Review hooks 审查并信任「澜汐审批提醒」。'
                         '\n也可以在同一账号的 Codex 终端使用 /hooks。'
-                        '\n审批仍在发起请求的 Codex 窗口确认。')
+                        '\n澜汐完全退出后，Windows 会显示提醒。审批在发起请求的 Codex 窗口确认。')
 
     def refresh_external_approval_alerts(self):
         if self._quitting:

@@ -22,12 +22,9 @@ def hook_home():
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
-def hook_entry(root):
-    script = root / ".local" / "codex-approval-alert.ps1"
-    # EncodedCommand handles Windows paths containing spaces and shell metacharacters.
-    command = "& '" + str(script).replace("'", "''") + "'"
+def _hook(command):
     encoded = base64.b64encode(command.encode("utf-16-le")).decode("ascii")
-    return script, {
+    return {
         "hooks": [{
             "type": "command",
             "command": "powershell.exe -NoProfile -NonInteractive -EncodedCommand " + encoded,
@@ -35,6 +32,19 @@ def hook_entry(root):
             "statusMessage": "澜汐审批提醒",
         }]
     }
+
+
+def hook_entry(root):
+    bundle = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    source = (bundle / "scripts" / "codex-approval-alert.ps1").read_text(encoding="utf-8")
+    inbox = str(root / ".local" / ALERTS).replace("'", "''")
+    # A command can run under Restricted without executing a .ps1 file.
+    return _hook(f"$inbox = '{inbox}'\n{source}")
+
+
+def _legacy_hook(root):
+    script = str(root / ".local" / "codex-approval-alert.ps1").replace("'", "''")
+    return _hook("& '" + script + "'")
 
 
 def user_hook_config(path):
@@ -51,9 +61,9 @@ def user_hook_config(path):
 
 def installed(root, home):
     path = home / "hooks.json"
-    script, entry = hook_entry(root)
+    entry = hook_entry(root)
     _, existing, _ = user_hook_config(path)
-    return script.is_file() and entry in existing
+    return entry in existing
 
 
 def configure(root, home, enabled):
@@ -63,18 +73,15 @@ def configure(root, home, enabled):
     home.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
         raise ValueError("请在原始 Codex 配置目录中安装提醒 Hook。")
-    script, entry = hook_entry(root)
+    entry = hook_entry(root)
+    legacy = _legacy_hook(root)
     with closing(ServiceLock(home / "lanxi-approval-hook.lock")):
         config, existing, original = user_hook_config(path)
-        if enabled:
-            bundle = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-            script.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write(script, (bundle / "scripts" / script.name).read_bytes())
-        if enabled == (entry in existing):
-            return
-        updated = [row for row in existing if row != entry]
-        if enabled:
+        updated = [row for row in existing if row != legacy and (enabled or row != entry)]
+        if enabled and entry not in updated:
             updated.append(entry)
+        if updated == existing:
+            return
         if updated:
             config["hooks"][HOOK_EVENT] = updated
         else:
@@ -95,14 +102,17 @@ def take_alerts(root):
             info = path.stat()
             if not path.is_file():
                 continue
+            alert = None
             if 0 <= now - info.st_mtime <= MAX_AGE and info.st_size <= 4096:
                 try:
                     row = json.loads(path.read_bytes())
                 except ValueError:
                     row = None
                 if isinstance(row, dict) and all(isinstance(row.get(k), str) for k in ("project", "tool", "thread")):
-                    alerts.append({k: " ".join(row[k].split())[:160] for k in ("project", "tool", "thread")})
-            path.unlink(missing_ok=True)
+                    alert = {k: " ".join(row[k].split())[:160] for k in ("project", "tool", "thread")}
+            path.unlink()
+            if alert:
+                alerts.append(alert)
         except OSError:
             continue
         if len(alerts) == 12:

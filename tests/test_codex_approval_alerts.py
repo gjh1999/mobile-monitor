@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_approval_alerts import configure, hook_entry, installed, take_alerts
+from codex_approval_alerts import _legacy_hook, configure, hook_entry, installed, take_alerts
 
 
 class CodexApprovalAlertsTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class CodexApprovalAlertsTests(unittest.TestCase):
             self.assertTrue(installed(root, home))
             actual = json.loads(path.read_bytes())
             self.assertEqual(actual["hooks"]["PermissionRequest"], existing["hooks"]["PermissionRequest"]
-                             + [hook_entry(root)[1]])
+                             + [hook_entry(root)])
             configure(root, home, False)
             self.assertFalse(installed(root, home))
             self.assertEqual(json.loads(path.read_bytes()), existing)
@@ -35,18 +35,31 @@ class CodexApprovalAlertsTests(unittest.TestCase):
                 configure(root, home, True)
             self.assertEqual(path.read_bytes(), b"broken")
 
+    def test_enabling_replaces_the_legacy_hook_for_this_desktop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "codex"
+            home.mkdir()
+            path = home / "hooks.json"
+            other = _legacy_hook(root / "other data")
+            path.write_text(json.dumps({"hooks": {"PermissionRequest": [_legacy_hook(root), other]}}), encoding="utf-8")
+            self.assertFalse(installed(root, home))
+            configure(root, home, True)
+            self.assertEqual(json.loads(path.read_bytes())["hooks"]["PermissionRequest"], [other, hook_entry(root)])
+
     @unittest.skipUnless(os.name == "nt" and shutil.which("powershell.exe"), "Windows PowerShell hook")
     def test_hook_emits_reminder_and_no_approval_decision(self):
         with tempfile.TemporaryDirectory(prefix="澜汐 hook's path ") as directory:
             root = Path(directory)
             configure(root, root / "codex", True)
-            _, entry = hook_entry(root)
-            command = entry["hooks"][0]["command"].split()
+            command = hook_entry(root)["hooks"][0]["command"].split()
+            env = {name: value for name, value in os.environ.items() if name.casefold() != "psexecutionpolicypreference"}
+            env["PSExecutionPolicyPreference"] = "Restricted"
             event = {"hook_event_name": "PermissionRequest", "cwd": str(root / "某项目"),
                      "session_id": "fixture", "tool_name": "Bash",
                      "tool_input": {"command": "private detail"}}
             output = subprocess.run(command, input=json.dumps(event, ensure_ascii=False).encode("utf-8"),
-                                    capture_output=True, timeout=10, check=True)
+                                    env=env, capture_output=True, timeout=10, check=True)
             self.assertEqual(output.stdout, b"")
             self.assertEqual(take_alerts(root), [{"project": "某项目", "tool": "Bash", "thread": "fixture"}])
             self.assertEqual(take_alerts(root), [])

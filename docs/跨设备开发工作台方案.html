@@ -292,6 +292,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
   <p>在「合流」点击「信任 Git 目录并重试」，选择对应的本机仓库。澜汐将该路径加入当前 Windows 用户的 Git <code>safe.directory</code>，再安排下一轮同步。<a href="PERSONAL_SYNC.md#手动同步">手动同步</a></p>
   <p>自动同步已在运行时，点「合流」查看同一轮的阶段、耗时和已处理仓库。GitHub HTTP 请求长时间没有数据时会报超时，其他仓库继续处理。<a href="PERSONAL_SYNC.md#手动同步">合流说明</a></p>
   <p>在托盘启用「VS Code 审批提醒」，重启 VS Code 并在 Codex 中信任「澜汐审批提醒」。本机 Codex 扩展发起审批时，澜汐会在桌面置顶提醒，实际确认在发起请求的窗口操作。<a href="DESKTOP.md#审批窗口">审批说明</a></p>
+  <p><strong>澜汐退出后的 VS Code 审批提醒，已实现待发布。</strong> VS Code 持有 Codex 会话时，澜汐优先弹窗。澜汐退出后由 Windows 弹窗，实际审批在发起请求的 VS Code 窗口处理。<a href="DELIVERY_STATUS.md#vscode-approval-after-exit">审批提醒工单</a></p>
   <p>通过应用升级的 Windows 版本在当前用户的开始菜单登记「澜汐」。程序运行时，可从托盘选择「打开程序所在目录」。<a href="PORTABLE_CHECK.md#升级与首次配置">升级与重开</a></p>
   <p>关闭主窗口缩到托盘后，澜汐暂停自动接入和推进，并交还此设备持有的任务控制权。正在运行或有待审批的任务在安全交接条件满足后自动交还，托盘继续提供审批和完成提醒。恢复主窗口后，可重新「执舟」已交还的会话。<a href="DESKTOP.md">托盘用法</a></p>
   <p>连续执行命令时，Codex 对话正文和执行札记分别显示最近 50 条。接入原生会话记录时，同一轮的补充输入按内容逐条合并。<a href="DESKTOP.md">桌面使用说明</a></p>

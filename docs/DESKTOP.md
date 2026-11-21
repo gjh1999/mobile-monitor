@@ -53,6 +53,8 @@ R42 关闭主窗口缩到托盘时，澜汐自动交还本机持有的任务控�
 
 R41 支持 Windows 上独立 Codex 的审批提醒。在澜汐托盘选择「VS Code 审批提醒…」并启用。重启 VS Code，在 Codex 输入框旁的 **Review hooks** 审查并信任「澜汐审批提醒」。也可在同一 Windows 账号的终端打开 Codex，用 `/hooks` 完成审查。使用自定义 `CODEX_HOME` 时，澜汐、终端和扩展需使用同一配置目录。澜汐运行时，收到支持的审批事件会置顶显示项目和工具名。实际确认在发起请求的 Codex 窗口操作。再次打开同一菜单可停用此提醒。 [Codex Hook 官方说明](https://learn.chatgpt.com/docs/hooks#permissionrequest)
 
+R45 的 Hook 支持澜汐完全退出时由 Windows 弹出「Codex 等待审批」。VS Code 可以继续持有会话。升级后在托盘选择「VS Code 审批提醒…」更新 Hook，重启 VS Code 并重新信任。实际审批在发起请求的 VS Code 窗口处理。
+
 已完成 R35 包内界面的隔离 Qt 验证和双设备模拟联调。R36 包内的最终界面改动已通过独立复测，实体双机及真实客户端审批仍待现场验证。 [R35-03](DELIVERY_STATUS.md#r35-03) · [后端接口及支持范围](ARCHITECTURE.md#全局-codex-监控与审批队列)
 
 ## EXE 与数据
