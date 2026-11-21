@@ -17,11 +17,19 @@ def probe(mode):
     from PySide6.QtCore import QSharedMemory, QTimer
     from PySide6.QtWidgets import QApplication
     import desktop_qt
+    import desktop_update
     import monitor
 
     report = {'mode': mode, 'fallbackNeeded': False, 'joinCalls': 0, 'startedWorkers': 0}
     shared_key = 'CodexMonitorShutdownTest.' + uuid.uuid4().hex
     holder = {}
+    tray_modes = []
+    tray_status = {'state': 'idle', 'pending': 0, 'detail': ''}
+
+    def set_tray_mode(hidden):
+        tray_modes.append(hidden)
+        if hidden:
+            tray_status.update(state='waiting', pending=2, detail='等待当前对话完成')
 
     def start_workers(stop):
         entered = [threading.Event(), threading.Event()]
@@ -71,6 +79,31 @@ def probe(mode):
                 report['keptWorkersWhenHidden'] = not self.stop.is_set()
                 report['lockHeldWhenHidden'] = shared.isAttached()
                 report['trayPresentWhenHidden'] = self.tray.isVisible()
+                self.close()
+                item = self._tray_release_action
+                report['waitShownWhileHidden'] = (item in self.tray.contextMenu().actions() and item.isVisible()
+                                                  and not item.isEnabled() and '2 个任务' in item.text()
+                                                  and '等待当前对话完成' in item.text())
+
+            def restore_from_tray():
+                action = next(action for action in self.tray.contextMenu().actions()
+                              if action.text() == '打开澜汐')
+                action.trigger()
+                self.operate('focus', tid=str(uuid.uuid4()))
+                report['visibleWhenRestored'] = self.isVisible()
+                report['guardedUntilReleased'] = '正在交还' in self.control_message.text()
+                tray_status.update(state='released', pending=0, detail='')
+                self.refresh_tray_release()
+                report['releaseSeenWhenRestored'] = ('已交还' in self._tray_release_action.text()
+                                                     and not self.tray_control_guard())
+
+            def minimize_to_taskbar():
+                self.showMinimized()
+                report['taskbarMinimized'] = self.isMinimized() and not self._tray_hidden
+
+            def update_in_place():
+                self.updater.staged = PROJECT / 'replacement.exe'
+                self.updater.restart()
 
             def exit_from_menu():
                 action = next(action for action in self.tray.contextMenu().actions()
@@ -83,9 +116,14 @@ def probe(mode):
                 report['fallbackNeeded'] = True
                 app.quit()
 
-            if mode == 'hidden':
+            if mode in ('hidden', 'restored'):
                 QTimer.singleShot(30, hide_first)
-            QTimer.singleShot(90, app.quit if mode == 'application_quit' else exit_from_menu)
+            if mode == 'restored':
+                QTimer.singleShot(60, restore_from_tray)
+            if mode == 'minimized':
+                QTimer.singleShot(30, minimize_to_taskbar)
+            exit_action = {'application_quit': app.quit, 'update': update_in_place}.get(mode, exit_from_menu)
+            QTimer.singleShot(90, exit_action)
             QTimer.singleShot(500, watchdog)
 
     monitor.update(threads=[], controls={'ready': True, 'tasks': [], 'operations': []},
@@ -94,8 +132,13 @@ def probe(mode):
          patch.object(desktop_qt, 'MainWindow', ObservedWindow), \
          patch.object(monitor, 'start_background_service', side_effect=start_workers), \
          patch.object(monitor, 'conversation_for', return_value={'messages': [], 'events': []}), \
+         patch.object(monitor, 'set_tray_mode', side_effect=set_tray_mode, create=True), \
+         patch.object(monitor, 'tray_release_status', side_effect=lambda: dict(tray_status), create=True), \
+         patch.object(desktop_update, 'restart_after_exit') as launch_new, \
          patch.object(monitor, 'controller', None), patch.object(monitor, 'claude_controller', None):
         report['exitCode'] = desktop_qt.main()
+    report['trayModes'] = tray_modes
+    report['updateRestartCalls'] = launch_new.call_count
     report['lockReleasedAfterMain'] = not holder['shared'].isAttached()
     replacement = QSharedMemory(shared_key)
     report['replacementCanAcquireLock'] = replacement.create(1)
@@ -112,7 +155,7 @@ class Tests(unittest.TestCase):
             import PySide6
         except ImportError:
             self.skipTest('Qt desktop dependencies not installed')
-        for mode in ('hidden', 'visible', 'application_quit'):
+        for mode in ('hidden', 'restored', 'minimized', 'visible', 'update', 'application_quit'):
             with self.subTest(mode=mode):
                 environment = {**os.environ, 'QT_QPA_PLATFORM': 'offscreen'}
                 result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()), '--probe', mode],
@@ -129,10 +172,17 @@ class Tests(unittest.TestCase):
                               'lockHeldUntilLoopExit', 'stopRequestedAtLoopExit', 'trayHiddenAtLoopExit',
                               'lockReleasedAfterMain', 'replacementCanAcquireLock'):
                     self.assertTrue(report.get(field), (field, report))
-                if mode == 'hidden':
+                self.assertEqual(report['trayModes'], {'hidden': [True], 'restored': [True, False]}.get(mode, []))
+                self.assertEqual(report['updateRestartCalls'], int(mode == 'update'))
+                if mode in ('hidden', 'restored'):
                     for field in ('hiddenBeforeExit', 'keptWorkersWhenHidden', 'lockHeldWhenHidden',
-                                  'trayPresentWhenHidden'):
+                                  'trayPresentWhenHidden', 'waitShownWhileHidden'):
                         self.assertTrue(report.get(field), (field, report))
+                if mode == 'restored':
+                    for field in ('visibleWhenRestored', 'guardedUntilReleased', 'releaseSeenWhenRestored'):
+                        self.assertTrue(report.get(field), (field, report))
+                if mode == 'minimized':
+                    self.assertTrue(report.get('taskbarMinimized'), report)
 
 
 if __name__ == '__main__':
