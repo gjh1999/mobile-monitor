@@ -17,7 +17,7 @@ class Tests(unittest.TestCase):
   key = 'CodexMonitorTest.' + uuid.uuid4().hex
   # Keep the real shared-memory lock. Only the window/event loop are replaced so
   # this check cannot start CLI processes or present an interactive message box.
-  with patch.object(desktop_qt, 'QApplication') as application, \
+  with patch.object(desktop_qt, 'DesktopApplication') as application, \
        patch.object(desktop_qt, 'QSharedMemory', side_effect=lambda _name: QSharedMemory(key)), \
        patch.object(desktop_qt, 'MainWindow') as window, \
        patch.object(desktop_qt.QMessageBox, 'information') as notice, \

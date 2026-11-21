@@ -325,6 +325,13 @@ class PersonalTaskLocks:
     def handoff(self, thread, ticket, checkpoint):
         self.request('/' + str(uuid.UUID(thread)) + '/handoff', {'ticket': ticket, 'checkpoint': checkpoint})
 
+    def handoff_held(self, thread, project, checkpoint):
+        route = '/' + str(uuid.UUID(thread))
+        # The caller read this device's active tasks. If another request
+        # just handed it off, the now-required checkpoint prevents a re-claim.
+        ticket = self.request(route + '/claim', {'project': project, 'checkpoint': None})['ticket']
+        self.handoff(thread, ticket, checkpoint)
+
     def event(self, project, session, source, sequence, event):
         return self.request(payload={'project': project, 'session': session, 'event': event},
                             prefix='/api/v1/personal/project-activity')

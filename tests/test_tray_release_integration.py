@@ -1,6 +1,5 @@
 """Exercise tray handoff with two devices on an isolated personal coordinator."""
 
-import json
 import socket
 import tempfile
 import threading
@@ -20,7 +19,7 @@ from coordination_server import create_app
 from personal_memory import pack
 from personal_relay import EMPTY, RemoteRecords, digest
 from personal_sync import PersonalSync
-from universal_rpc import RPC
+from universal_rpc import CodexRPC
 
 
 class TrayReleaseIntegrationTests(unittest.TestCase):
@@ -79,7 +78,7 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
         return locks.claim(tid, project, lambda _: checkpoint)
 
     def app_server(self, states):
-        rpc = RPC.__new__(RPC)
+        rpc = CodexRPC.__new__(CodexRPC)
         rpc.approvals = Approvals()
         rpc.write_lock = threading.Lock()
         rpc.loaded_threads = set(states)

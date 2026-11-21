@@ -254,10 +254,11 @@ def replace_envelope(path, expected, data, backups):
     replace(path, expected, data, backups, limit=MAX_ENVELOPE)
 
 
-def confirm_published_session(store, session, tid):
+def confirm_published_session(store, session, tid, *, index=None):
     native = Path(session["path"])
     key = f"sessions/{session['project']}/{native.name}"
-    index = store.index()
+    if index is None:
+        index = store.index()
     data = read_transcript(native)
     if not data or session_info(data)[0] != tid:
         return None

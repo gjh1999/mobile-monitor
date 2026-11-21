@@ -168,6 +168,30 @@ class PersonalSync:
             time.sleep(.25)
         raise ControlDenied(detail="最新代码和会话尚未同步，任务仍由本机持有。同步成功后可以重试交还。")
 
+    def handoff_checkpoints(self, threads):
+        view = self.snapshot()
+        store = self.store()
+        index = store.index() if store is not None else {}
+        receipts, errors = {}, {}
+        for tid in threads:
+            session = view["sessions"].get(tid)
+            if not session:
+                errors[tid] = f"任务 {tid[:8]} 在本机没有可核验的已完成会话。"
+                continue
+            project = session["project"]
+            if view["status"].get(project) != "已同步":
+                errors[tid] = f"{project} 的最新代码和会话等待同步。"
+                continue
+            try:
+                checkpoint = confirm_published_session(store, session, tid, index=index) if store else None
+            except (OSError, ValueError, KeyError):
+                checkpoint = None
+            if checkpoint:
+                receipts[tid] = project, checkpoint
+            else:
+                errors[tid] = f"任务 {tid[:8]} 的最新已完成会话等待服务器确认。"
+        return receipts, errors
+
     def request(self, project):
         with self.lock:
             self.priority = project
