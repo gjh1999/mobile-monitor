@@ -628,7 +628,7 @@ class TaskControl:
             return bool(self.control_allowed() and row and row[0] and not row[1] and row[2] and not pending and self.connection is rpc and
                         tid in getattr(rpc, 'owned_threads', set()) and self.runtime.get(tid, {}).get('canControl'))
 
-    def automatic_tasks(self, rpc, tasks):
+    def automatic_tasks(self, rpc, tasks, *, explicit_only=False):
         # Explicit local pause/detach/unmanage must also override duplicate entries
         # from configuration; those must not resurrect a removed wait on restart.
         with self.lock:
@@ -636,6 +636,8 @@ class TaskControl:
         result = {}
         for task in tasks:
             tid = task['threadId']
+            if explicit_only and tid not in targets:
+                continue
             if tid in targets:
                 enabled, paused, managed = targets[tid]
                 if not enabled or paused or not managed:

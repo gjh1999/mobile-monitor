@@ -237,6 +237,8 @@ def poll(stop):
      try:
       if generation != release_generation:
        controller.disable_for_tray()
+       controls=controller.snapshot()
+       update(controls=controls,attachments=controls['tasks'])
        release_generation=generation
        handoff=CodexTrayRelease(stop,lambda:tray_release.continuing(release_generation),approvals.pending_for)
       result=release_step(lambda:handoff.step(rpc,personal_sync,drained))
@@ -270,7 +272,9 @@ def poll(stop):
      controls=controller.snapshot();update(controls=controls,attachments=controls['tasks'])
      managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[])) if tray_release.managed_allowed() else ([],[])
      update(managedTasks=managed_status)
-     automatic_tasks=controller.automatic_tasks(rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc))
+     automatic_tasks=controller.automatic_tasks(
+      rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc),
+      explicit_only=not tray_release.managed_allowed())
      collect(rpc,{**cfg,'tasks':automatic_tasks},scheduler)
     approvals.expire()
     policy=ScopedPolicy(workspace,cfg.get('autoApprovalRules',[]))
@@ -392,7 +396,7 @@ def poll_claude(stop):
    try:
     generation=tray_release.begin('claude')
     schedule=[]
-    threads=snapshot()['claude']['threads']
+    with state_lock:threads=state['claude']['threads']
     if generation is not None:
      result=('waiting',0,'本机 Claude Code 暂未完成交还，后台将重试。')
      try:
