@@ -83,12 +83,14 @@ class CodexHistoryTests(unittest.TestCase):
         self.assertEqual(self.messages(), ['legacy prompt', 'same legacy reply', 'same legacy reply'])
 
     def test_modern_user_input_only_replaces_a_single_matching_legacy_copy(self):
-        for second, text in enumerate(('first question', 'follow-up', 'follow-up'), start=1):
-            self.append(line('event_msg', dict(type='user_message', message=text, turn_id='one'), second))
-        self.assertEqual(self.messages(), ['first question', 'follow-up', 'follow-up'])
-        self.append(message('one', 'user', 'follow-up', 'modern-steer', 3))
-        self.assertEqual(self.messages(), ['first question', 'follow-up', 'follow-up'])
-        self.append(line('event_msg', dict(type='thread_rolled_back', num_turns=1), 4))
+        for second, kind, text in ((1, 'user_message', 'first question'), (2, 'user_message', 'follow-up'),
+                                   (3, 'agent_message', 'checking'), (4, 'user_message', 'follow-up')):
+            self.append(line('event_msg', dict(type=kind, message=text, turn_id='one'), second))
+        expected = ['first question', 'follow-up', 'checking', 'follow-up']
+        self.assertEqual(self.messages(), expected)
+        self.append(message('one', 'user', 'follow-up', 'modern-steer', 4))
+        self.assertEqual(self.messages(), expected)
+        self.append(line('event_msg', dict(type='thread_rolled_back', num_turns=1), 5))
         self.assertEqual(self.messages(), [])
 
     def test_command_burst_does_not_evict_the_user_prompt_or_reply(self):

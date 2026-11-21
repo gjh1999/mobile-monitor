@@ -230,22 +230,23 @@ def merge_messages(completed, legacy, recorded, removed, activity=()):
     exact = OrderedDict(((message['turnId'], message['id']), message) for message in completed)
     modern = {(turn, message['role']) for (turn, _), message in exact.items()
               if turn and message['role'] != 'user'}
-    modern_users = Counter((turn, message['text']) for (turn, _), message in exact.items()
-                           if turn and message['role'] == 'user')
-    unique_legacy = []
-    for message in legacy:
-        turn, role = message['turnId'], message['role']
-        if role == 'user':
-            key = (turn, message['text'])
-            # A modern message replaces only its matching legacy copy. A turn
-            # can contain multiple user inputs while the agent is running.
-            if modern_users[key]:
-                modern_users[key] -= 1
-                continue
-        elif (turn, role) in modern:
-            continue
-        unique_legacy.append(message)
-    legacy = unique_legacy
+    legacy_users = {}
+    for index, message in enumerate(legacy):
+        if message['turnId'] and message['role'] == 'user':
+            legacy_users.setdefault((message['turnId'], message['text']), []).append(index)
+    duplicate_users = set()
+    for (turn, _), message in exact.items():
+        candidates = legacy_users.get((turn, message['text'])) if message['role'] == 'user' else None
+        if candidates:
+            # Match one nearby copy without moving another identical input
+            # elsewhere in the same turn.
+            position = min(range(len(candidates)), key=lambda i: (
+                abs(legacy[candidates[i]]['time'] - message['time']),
+                abs(legacy[candidates[i]]['position'] - message['position']),
+            ))
+            duplicate_users.add(candidates.pop(position))
+    legacy = [message for index, message in enumerate(legacy)
+              if index not in duplicate_users and (message['turnId'], message['role']) not in modern]
     legacy_keys = Counter((m['turnId'], m['role'], m['text']) for m in legacy if m['turnId'])
     extra = []
     absorbed = set()
@@ -274,13 +275,13 @@ def merge_messages(completed, legacy, recorded, removed, activity=()):
                 durable = {**durable, **item}
             keyed[key] = {**durable, 'time': min(durable['time'], item['time'])}
     messages = sorted((*keyed.values(), *legacy), key=lambda m: (m['time'], m.get('position', 0)))
-    remaining = {False: MESSAGE_LIMIT, True: MESSAGE_LIMIT}
+    remaining = {'conversation': MESSAGE_LIMIT, 'process': MESSAGE_LIMIT}
     visible = []
     for message in reversed(messages):
-        process = message['role'] == 'process'
-        if remaining[process]:
+        group = 'process' if message['role'] == 'process' else 'conversation'
+        if remaining[group]:
             visible.append(message)
-            remaining[process] -= 1
+            remaining[group] -= 1
     result = []
     for message in reversed(visible):
         fields = ('role', 'text', 'time', 'truncated')
