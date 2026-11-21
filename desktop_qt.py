@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QPropertyAnimation, QRectF, QSharedMemory, QSignalBlocker, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QCursor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
+from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
 from PySide6.QtWidgets import (
     QApplication, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
     QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QTreeWidget, QTreeWidgetItem,
@@ -663,6 +663,10 @@ class MainWindow(QMainWindow):
         self.worker = None
         self._quitting = False
         self._shutdown_complete = False
+        self._tray_hidden = False
+        self._tray_release_action = QAction(self)
+        self._tray_release_action.setEnabled(False)
+        self._tray_release_action.setVisible(False)
         self.client = 'codex'
         self.selected_thread = ''
         self.client_selections = {'codex': '', 'claude': ''}
@@ -1070,6 +1074,8 @@ class MainWindow(QMainWindow):
 
     def populate_app_menu(self, menu, *, include_about=False):
         menu.addAction('打开澜汐', self.show_window)
+        menu.addAction(self._tray_release_action)
+        menu.aboutToShow.connect(self.refresh_tray_release)
         menu.addAction('吉光片羽', self.open_notebook)
         menu.addAction('运行与额度', self.show_details)
         menu.addAction('测试…', self.open_diagnostics)
@@ -1326,6 +1332,36 @@ class MainWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._tray_hidden and not self._quitting:
+            self._tray_hidden = False
+            monitor.set_tray_mode(False)
+            self.refresh_tray_release()
+
+    def refresh_tray_release(self):
+        status = monitor.tray_release_status()
+        state = status['state']
+        text = {
+            'releasing': '正在交还本机控制权',
+            'waiting': '等待交还本机控制权',
+            'released': '本机控制权已交还',
+        }.get(state, '')
+        if text and status['pending']:
+            text += f" · 待处理 {status['pending']} 个任务"
+        if text and status['detail']:
+            text += ' · ' + display_text(' '.join(status['detail'].split()))
+        self._tray_release_action.setText(text)
+        self._tray_release_action.setVisible(bool(text))
+        self.tray.setToolTip(f'{WINDOW_TITLE}\n{text}' if text else WINDOW_TITLE)
+
+    def tray_control_guard(self):
+        if self._tray_hidden:
+            return '请打开澜汐并重新执舟。'
+        if monitor.tray_release_status()['state'] in ('releasing', 'waiting'):
+            return '正在交还本机控制权，完成后可重新执舟。'
+        return ''
 
     def quit_app(self):
         self._quitting = True
@@ -1612,6 +1648,7 @@ class MainWindow(QMainWindow):
             self.verse_hour = hour
 
     def refresh(self):
+        self.refresh_tray_release()
         self.refresh_verse()
         snapshot = monitor.snapshot()
         snap = monitor.client_snapshot(snapshot, self.client)
@@ -1852,6 +1889,10 @@ class MainWindow(QMainWindow):
         menu.deleteLater()
 
     def operate(self, action, text_override=None, tid=None):
+        waiting = self.tray_control_guard()
+        if waiting and action != 'rename':
+            self.control_message.setText(waiting)
+            return
         text = self.message_edit.toPlainText() if action == 'message' else (text_override or '')
         if action == 'message' and self.client == 'codex':
             command = text.strip()
@@ -1958,12 +1999,17 @@ class MainWindow(QMainWindow):
         else:
             message_hint = '选择案头任务执舟后即可发送。'
         blocked = self.project_occupancy_message(self.selected_thread)
-        buttons['attach'].setToolTip(blocked or '接入任务')
-        if blocked:
-            for name in ('attach', 'pause', 'resume', 'manage', 'unmanage', 'handoff', 'open_project'):
+        waiting = self.tray_control_guard()
+        buttons['attach'].setToolTip(waiting or blocked or '接入任务')
+        if blocked or waiting:
+            for name in ('attach', 'pause', 'resume', 'manage', 'unmanage', 'handoff'):
                 buttons[name].setEnabled(False)
             allowed = False
-        self.message_hint.setText(blocked or message_hint)
+        if blocked:
+            buttons['open_project'].setEnabled(False)
+        if waiting:
+            buttons['detach'].setEnabled(False)
+        self.message_hint.setText(waiting or blocked or message_hint)
         self.send_button.setEnabled(allowed)
         self.check_operation_results(controls)
 
@@ -2299,8 +2345,14 @@ class MainWindow(QMainWindow):
             event.ignore()
             if self.notebook is not None and not self.notebook.flush():
                 return
+            if self._tray_hidden:
+                return
+            self._tray_hidden = True
+            monitor.set_tray_mode(True)
             self.hide()
-            self.tray.showMessage('任务监控仍在运行', '点击托盘图标可以重新打开。', QSystemTrayIcon.MessageIcon.Information, 2000)
+            self.refresh_tray_release()
+            self.tray.showMessage('正在交还本机控制权', '右键点击澜汐托盘图标查看交还状态。',
+                                  QSystemTrayIcon.MessageIcon.Information, 3000)
             return
         self.shutdown()
         event.accept()
