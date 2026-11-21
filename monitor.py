@@ -272,6 +272,7 @@ def poll(stop):
      controls=controller.snapshot();update(controls=controls,attachments=controls['tasks'])
      if rpc.closed:
       update(connection='disconnected',serviceStatus='正在重连 Codex')
+      tray_release.wait('codex',stop,1)
       continue
      managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[])) if tray_release.managed_allowed() else ([],[])
      update(managedTasks=managed_status)

@@ -2,6 +2,7 @@ import json,tempfile,unittest,threading
 from pathlib import Path
 from task_control import TaskControl
 from rpc_client import RPCError
+from rpc_errors import RPCNotSent
 TARGET='01a1cad9-8028-7771-bf25-2115a5c73e1f'
 OTHER='01a1cad9-8028-7771-bf25-2115a5c73e20'
 
@@ -165,6 +166,76 @@ class Tests(unittest.TestCase):
   c.submit(TARGET,'message','work','send1');c.tick(r);c.tick(r)
   self.assertEqual(c.snapshot()['operations'][0]['status'],'unknown')
   self.assertEqual(sum(m=='turn/start' for m,p in r.calls),1)
+
+ def test_reconnect_dispatches_the_same_unsent_message_once(self):
+  for state_probe, action, active in ((True, 'message', False), (False, 'message', True),
+                                      (False, 'resume', False)):
+   with self.subTest(state_probe=state_probe, action=action, active=active):
+    control=self.make();rpc=Mock();rpc.active=active
+    control.seed([TARGET]);control.tick(rpc)
+    if action=='resume':
+     control.submit(TARGET,'pause');control.tick(rpc)
+    before=rpc.call
+    turn_method='turn/steer' if active else 'turn/start'
+
+    def disconnect(method,params):
+     if method==('thread/turns/list' if state_probe else turn_method):
+      rpc.closed=True
+      if state_probe:
+       raise ConnectionError('lost the read-only response')
+      raise RPCNotSent('closed before writing')
+     return before(method,params)
+
+    rpc.call=disconnect
+    key=control.submit(TARGET,action,'继续',request_id='continue-after-reconnect')
+    control.tick(rpc);control.tick(rpc)
+    operation=next(o for o in control.snapshot()['operations'] if o['id']==key)
+    self.assertEqual(operation['status'],'queued')
+    self.assertIn('指令尚未发送',operation['message'])
+    self.assertNotIn(turn_method,[method for method,_ in rpc.calls])
+    replacement=Mock();replacement.active=active
+    control.tick(replacement);control.tick(replacement)
+    self.assertEqual(next(o['status'] for o in control.snapshot()['operations'] if o['id']==key),'succeeded')
+    sends=[params for method,params in replacement.calls if method==turn_method]
+    self.assertEqual([send['clientUserMessageId'] for send in sends],[key])
+    if action=='message':
+     self.assertEqual(sends[0]['input'],[{'type':'text','text':'继续'}])
+
+ def test_loss_after_write_stays_unknown_across_reconnect(self):
+  control=self.make();rpc=Mock();control.seed([TARGET]);control.tick(rpc)
+  before=rpc.call
+
+  def disconnect(method,params):
+   if method=='turn/start':
+    rpc.calls.append((method,params));rpc.closed=True
+    raise ConnectionError('lost the response after writing')
+   return before(method,params)
+
+  rpc.call=disconnect
+  key=control.submit(TARGET,'message','继续')
+  control.tick(rpc)
+  replacement=Mock();control.tick(replacement)
+  self.assertEqual(control.snapshot()['operations'][0]['status'],'unknown')
+  self.assertEqual([p['clientUserMessageId'] for m,p in rpc.calls if m=='turn/start'],[key])
+  self.assertNotIn('turn/start',[method for method,_ in replacement.calls])
+
+ def test_pause_cancels_a_message_queued_for_reconnection(self):
+  control=self.make();rpc=Mock();control.seed([TARGET]);control.tick(rpc)
+  before=rpc.call
+
+  def disconnect(method,params):
+   if method=='turn/start':
+    rpc.closed=True
+    raise RPCNotSent('closed before writing')
+   return before(method,params)
+
+  rpc.call=disconnect
+  key=control.submit(TARGET,'message','继续')
+  control.tick(rpc)
+  control.submit(TARGET,'pause')
+  replacement=Mock();control.tick(replacement)
+  self.assertEqual(next(o['status'] for o in control.snapshot()['operations'] if o['id']==key),'cancelled')
+  self.assertNotIn('turn/start',[method for method,_ in replacement.calls])
  def test_manual_resume_rechecks_usage_limit_without_resetting_goal(self):
   c=self.make();r=Mock();r.goal='usageLimited';c.seed([TARGET]);c.tick(r)
   c.submit(TARGET,'pause',request_id='pause1');c.tick(r)

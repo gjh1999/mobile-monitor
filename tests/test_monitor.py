@@ -1,10 +1,13 @@
 ﻿import copy, queue, tempfile, threading, unittest
+from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 import monitor
 from automation import Approvals, Scheduler
 from rpc_client import RPC, RPCError
 from task_control import TaskControl
+from rpc_errors import RPCNotSent
 
 
 class FakeRPC:
@@ -42,6 +45,26 @@ class Tests(unittest.TestCase):
   pending = queue.Queue();rpc.pending[9] = pending;rpc.mark_closed()
   self.assertTrue(pending.get_nowait()['disconnected'])
   self.assertEqual(rpc.approvals.public()[1]['decision'], 'disconnected')
+
+ def test_rpc_distinguishes_disconnect_before_write_from_lost_confirmation(self):
+  rpc = self.rpc();rpc.seq = 0;rpc.write_lock = threading.Lock()
+  stdin = StringIO()
+  rpc.p = SimpleNamespace(stdin=stdin)
+
+  def closed_during_preflight():
+   rpc.mark_closed()
+   return True
+
+  with self.assertRaises(RPCNotSent):
+   rpc.call('turn/start', {'_sendGuard': closed_during_preflight})
+  self.assertEqual(stdin.getvalue(), '')
+
+  rpc.closed = False
+  rpc.p.stdin = SimpleNamespace(write=stdin.write, flush=rpc.mark_closed)
+  with self.assertRaises(ConnectionError) as raised:
+   rpc.call('turn/start', {})
+  self.assertNotIsInstance(raised.exception, RPCNotSent)
+  self.assertIn('turn/start', stdin.getvalue())
 
  def test_notification_restart_dedup(self):
   class Channel:
