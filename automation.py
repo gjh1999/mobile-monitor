@@ -84,6 +84,8 @@ class Approvals:
      if getattr(v['rpc'],'monitor_only',False):v['decision']='expired'
      else:self.decide(k,False)
  def pending_for(self,thread_id):return any(v['decision'] is None and v['details'].get('threadId')==thread_id for v in self.public())
+ def pending_on(self,rpc):
+  with self.lock:return any(v['rpc'] is rpc and v['decision'] is None for v in self.items.values())
 class Scheduler:
  def __init__(self,path=':memory:',approvals=None):
   self.lock=threading.Lock();self.approvals=approvals;self.db=sqlite3.connect(path,check_same_thread=False);self.last_results=[];self.last_check=None

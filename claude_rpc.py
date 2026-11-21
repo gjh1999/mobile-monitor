@@ -336,6 +336,9 @@ class _Session:
 class ClaudeCodeRPC:
     client_type = 'claude'
 
+    def control_allowed(self):
+        return True
+
     def __init__(self, approvals=None, journal=None, sessions=None, command=None, popen=subprocess.Popen, drafts_path=None):
         self.approvals = approvals
         self.journal = journal
@@ -434,6 +437,9 @@ class ClaudeCodeRPC:
     def call(self, method, params, timeout=20):
         if self.closed:
             raise ConnectionError('Claude Code 适配器已经关闭。')
+        if method in ('thread/start', 'thread/resume', 'thread/name/set', 'turn/start', 'turn/steer', 'turn/interrupt'):
+            if not self.control_allowed():
+                raise RPCError(detail='任务控制暂停，正在交还本机写入权。')
         tid = params.get('threadId')
         if method == 'thread/list':
             threads = {t['id']: t for t in self.sessions.threads(limit=params.get('limit', 50))}
@@ -502,7 +508,9 @@ class ClaudeCodeRPC:
             if not text.strip():
                 raise RPCError(detail='请输入要发送的指令。')
             turn = params.get('clientUserMessageId') or str(uuid.uuid4())
-            session.prompt(text, turn, interject=method == 'turn/steer' or bool(session.active_turn), guard=params.get('_sendGuard'))
+            previous = params.get('_sendGuard')
+            session.prompt(text, turn, interject=method == 'turn/steer' or bool(session.active_turn),
+                           guard=lambda: self.control_allowed() and (previous is None or previous()))
             return {'turn': {'id': turn, 'status': 'inProgress'}}
         if method == 'turn/interrupt':
             if tid not in self.owned_threads:
@@ -555,3 +563,15 @@ class ClaudeCodeRPC:
             session.close()
         if self.approvals:
             self.approvals.disconnect(self)
+
+    def drain_for_tray(self):
+        if not self.closed:
+            if self.approvals and self.approvals.pending_on(self):
+                return False
+            with self.lock:
+                for session in self.running.values():
+                    with session.lock:
+                        if session.active_turn or session.inputs or session.pending_permissions or session.interrupting:
+                            return False
+            self.close()
+        return all(session.process.poll() is not None for session in self.running.values())

@@ -195,6 +195,13 @@ class CodexRPC(UniversalRPC):
     project_writes = None
     personal_flow = None
     handing_off = False
+    control_methods = frozenset({
+        'thread/start', 'thread/resume', 'thread/name/set', 'thread/settings/update',
+        'thread/goal/set', 'turn/start', 'turn/steer', 'turn/interrupt',
+    })
+
+    def control_allowed(self):
+        return True
 
     def __init__(self, approvals, journal=None, custom_process=None, coordination=None):
         self.approvals = approvals
@@ -204,6 +211,12 @@ class CodexRPC(UniversalRPC):
         super().__init__('codex', journal=journal, custom_process=custom_process)
 
     def call(self, method, params, timeout=20):
+        if method in self.control_methods:
+            if not self.control_allowed():
+                raise ControlDenied(detail='任务控制暂停，正在交还本机写入权。')
+            initial_guard = params.get('_sendGuard')
+            params = {**params, '_sendGuard': lambda: self.control_allowed() and
+                      (initial_guard is None or initial_guard())}
         automatic_resume = method == 'thread/resume' and not params.get('cwd')
         if automatic_resume and getattr(self, 'personal_session', None):
             session = self.personal_session(params['threadId'])
@@ -318,7 +331,10 @@ class CodexRPC(UniversalRPC):
             def guard():
                 if self.handing_off:
                     return False
-                locks.claim(thread, project, flow.session_digest)
+                if self.control_allowed():
+                    locks.claim(thread, project, flow.session_digest)
+                else:
+                    locks.require_approval_owner(thread, project)
                 return owner_guard() if owner_guard else True
             return guard
         return self.project_approval_guard(thread) if writes else None
@@ -380,6 +396,29 @@ class CodexRPC(UniversalRPC):
             locks.handoff(thread, ticket, checkpoint)
         finally:
             self.handing_off = False
+
+    def drain_for_tray(self):
+        if self.closed:
+            return self.p.poll() is not None
+        if self.approvals.pending_on(self):
+            return False
+        with self.write_lock:
+            writes = self.project_writes.tickets if self.project_writes else {}
+            if any(write.pending or write.uncertain for write in writes.values()):
+                return False
+            tracked = {thread: write.turn for (_, thread), write in writes.items()}
+            loaded = self.loaded_threads | self.owned_threads
+        if not all(ProjectWrites.idle(self, tid, tracked.get(tid), allow_unloaded=True)
+                   for tid in sorted(loaded | set(tracked))):
+            return False
+        if self.approvals.pending_on(self):
+            return False
+        with self.write_lock:
+            self.draining = True
+            self.closed = True
+            self.p.stdin.close()
+        self.p.wait(timeout=3)
+        return True
 
     def reconcile_writes(self, shutdown=False):
         self.project_writes.release_finished(self)

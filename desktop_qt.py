@@ -1350,7 +1350,7 @@ class MainWindow(QMainWindow):
         }.get(state, '')
         if text and status['pending']:
             text += f" · 待处理 {status['pending']} 个任务"
-        if text and status['detail']:
+        if state in ('releasing', 'waiting') and status['detail']:
             text += ' · ' + display_text(' '.join(status['detail'].split()))
         self._tray_release_action.setText(text)
         self._tray_release_action.setVisible(bool(text))
