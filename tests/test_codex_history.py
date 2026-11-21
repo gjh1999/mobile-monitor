@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_history import CodexHistory, read_codex_conversation
+from conversation import MESSAGE_LIMIT
 from reply_log import ReplyLog
 
 
@@ -80,6 +81,30 @@ class CodexHistoryTests(unittest.TestCase):
         self.assertEqual(self.messages(), ['legacy prompt', 'same legacy reply', 'same legacy reply', 'new prompt', 'new reply'])
         self.append(line('event_msg', dict(type='thread_rolled_back', num_turns=1), 7))
         self.assertEqual(self.messages(), ['legacy prompt', 'same legacy reply', 'same legacy reply'])
+
+    def test_modern_user_input_only_replaces_a_single_matching_legacy_copy(self):
+        for second, text in enumerate(('first question', 'follow-up', 'follow-up'), start=1):
+            self.append(line('event_msg', dict(type='user_message', message=text, turn_id='one'), second))
+        self.assertEqual(self.messages(), ['first question', 'follow-up', 'follow-up'])
+        self.append(message('one', 'user', 'follow-up', 'modern-steer', 3))
+        self.assertEqual(self.messages(), ['first question', 'follow-up', 'follow-up'])
+        self.append(line('event_msg', dict(type='thread_rolled_back', num_turns=1), 4))
+        self.assertEqual(self.messages(), [])
+
+    def test_command_burst_does_not_evict_the_user_prompt_or_reply(self):
+        self.append(message('one', 'user', 'my prompt', 'user', 1))
+        self.append(message('one', 'assistant', 'starting work', 'assistant', 2))
+        for index in range(MESSAGE_LIMIT + 5):
+            self.append(line('event_msg', dict(type='item_completed', turn_id='one', item={
+                'type': 'CommandExecution', 'id': f'cmd-{index}', 'command': ['example', str(index)],
+                'status': 'completed', 'aggregated_output': str(index),
+            }), 3))
+        rows = read_codex_conversation(self.path, THREAD, activity=())['messages']
+        self.assertEqual([(row['role'], row['text']) for row in rows[:2]],
+                         [('user', 'my prompt'), ('assistant', 'starting work')])
+        self.assertEqual([row['text'] for row in rows[2:]], [str(index) for index in range(5, MESSAGE_LIMIT + 5)])
+        self.append(line('event_msg', dict(type='thread_rolled_back', num_turns=1), 4))
+        self.assertEqual(read_codex_conversation(self.path, THREAD, activity=())['messages'], [])
 
     def test_reloads_replaced_rollout_and_checks_native_identity(self):
         self.append(message('one', 'user', 'before', 'a'))

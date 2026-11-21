@@ -433,6 +433,14 @@ def check_process_bubbles(window, output):
             assert '<h2 ' in chat.document().toHtml()
             assert chat.horizontalScrollBar().maximum() == 0
             window.grab().save(str(output / 'process-completed.png'))
+            for number in range(55):
+                event('item/completed', item={
+                    'id': f'command-{number}', 'type': 'commandExecution', 'status': 'completed',
+                    'command': f'fixture command {number}', 'exitCode': 0,
+                })
+            assert wait_until(lambda: 'fixture command 54' in chat.toPlainText())
+            assert chat.toPlainText().count('检查这次桌面打包，给我看一下运行结果。') == 1
+            assert '窗口与本地数据库均已通过验证。' in chat.toPlainText()
             print(f'Command delta became visible in {delta_ms:.1f} ms in the native synthetic test.')
 
 

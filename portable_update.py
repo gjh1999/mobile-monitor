@@ -14,7 +14,7 @@ from zipfile import ZipFile
 
 from coordination_client import device_client
 
-VERSION = "42"
+VERSION = "43"
 LIMIT = 160 * 1024**2
 
 

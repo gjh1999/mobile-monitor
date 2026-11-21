@@ -228,8 +228,24 @@ def history_for(home):
 
 def merge_messages(completed, legacy, recorded, removed, activity=()):
     exact = OrderedDict(((message['turnId'], message['id']), message) for message in completed)
-    modern = {(turn, message['role']) for (turn, _), message in exact.items() if turn}
-    legacy = [message for message in legacy if (message['turnId'], message['role']) not in modern]
+    modern = {(turn, message['role']) for (turn, _), message in exact.items()
+              if turn and message['role'] != 'user'}
+    modern_users = Counter((turn, message['text']) for (turn, _), message in exact.items()
+                           if turn and message['role'] == 'user')
+    unique_legacy = []
+    for message in legacy:
+        turn, role = message['turnId'], message['role']
+        if role == 'user':
+            key = (turn, message['text'])
+            # A modern message replaces only its matching legacy copy. A turn
+            # can contain multiple user inputs while the agent is running.
+            if modern_users[key]:
+                modern_users[key] -= 1
+                continue
+        elif (turn, role) in modern:
+            continue
+        unique_legacy.append(message)
+    legacy = unique_legacy
     legacy_keys = Counter((m['turnId'], m['role'], m['text']) for m in legacy if m['turnId'])
     extra = []
     absorbed = set()
@@ -257,9 +273,16 @@ def merge_messages(completed, legacy, recorded, removed, activity=()):
             if durable['role'] == 'process' and item['status'] in ('completed', 'failed', 'declined'):
                 durable = {**durable, **item}
             keyed[key] = {**durable, 'time': min(durable['time'], item['time'])}
-    messages = sorted((*keyed.values(), *legacy), key=lambda m: (m['time'], m.get('position', 0)))[-MESSAGE_LIMIT:]
+    messages = sorted((*keyed.values(), *legacy), key=lambda m: (m['time'], m.get('position', 0)))
+    remaining = {False: MESSAGE_LIMIT, True: MESSAGE_LIMIT}
+    visible = []
+    for message in reversed(messages):
+        process = message['role'] == 'process'
+        if remaining[process]:
+            visible.append(message)
+            remaining[process] -= 1
     result = []
-    for message in messages:
+    for message in reversed(visible):
         fields = ('role', 'text', 'time', 'truncated')
         if message['role'] == 'process':
             fields += ('command', 'status', 'exitCode', 'durationMs')
