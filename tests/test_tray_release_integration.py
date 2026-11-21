@@ -82,7 +82,10 @@ class TrayReleaseIntegrationTests(unittest.TestCase):
     def app_server(self, states):
         rpc = CodexRPC.__new__(CodexRPC)
         rpc.approvals = Approvals()
+        rpc.lock = threading.Lock()
         rpc.write_lock = threading.Lock()
+        rpc.pending = {}
+        rpc.control_pending = 0
         rpc.loaded_threads = set(states)
         rpc.owned_threads = set(states)
         rpc.closed = False

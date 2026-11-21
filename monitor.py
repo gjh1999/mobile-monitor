@@ -20,6 +20,7 @@ from personal_relay import RemoteRecords
 from rpc_errors import RPCError
 from code_sync import github_id
 from ide_activity import close_queue, flush_closes
+from tray_release import CodexTrayRelease, TrayRelease, release_step
 def _runtime_root():
  # A frozen app must keep its databases/configuration beside the EXE.  PyInstaller's
  # temporary extraction directory is disposable and cannot be used for state.
@@ -59,6 +60,13 @@ claude_journal=None
 history_labels={}
 personal_sync=None
 codex_activity=CodexActivity()
+tray_release=TrayRelease()
+
+def set_tray_mode(hidden):
+ tray_release.set(bool(hidden))
+
+def tray_release_status():
+ return tray_release.status()
 
 def enable_personal_sync(settings, stop, workers):
  global personal_sync
@@ -214,44 +222,61 @@ def poll(stop):
  workspace=_workspace or ROOT.parent
  managed=ManagedTasks(str(ROOT/'managed.sqlite3'),workspace)
  rpc=None;channel=None;failures=0;drained=[]
+ release_generation=None;handoff=None
  controller=TaskControl(ROOT/'task-control.sqlite3');controller.seed(config().get('autoAttachThreads',[]))
+ controller.control_allowed=tray_release.control_allowed
  journal=ReplyLog(str(ROOT/'replies.sqlite3'),activity=codex_activity,reply_notifications=False)
  native=WindowsNotifications(str(ROOT/'windows-notifications.sqlite3'))
  try:
   while not stop.is_set():
    try:
     cfg=config()
-    for previous in drained[:]:
-     previous.project_writes.release_closed()
-     if not previous.project_writes.tickets:drained.remove(previous)
-    if not history_labels:history_labels=load_labels()
-    if rpc is None or rpc.closed:
-     if rpc:
-      codex_activity.disconnect()
-      rpc.close()
-      if getattr(rpc,'draining',False):
-       rpc.p.wait(timeout=3)
-       drained.append(rpc)
-     client=device_client(cfg)
-     rpc=RPC(approvals,journal=journal,coordination=client) if client else RPC(approvals,journal=journal)
-     rpc.report_completion=codex_completed
-     rpc.personal_session=lambda tid: personal_sync.snapshot()['sessions'].get(tid) if personal_sync else None
-     rpc.personal_flow=lambda: personal_sync
-    writes=getattr(rpc,'project_writes',None)
-    if writes:
-     try:flush_closes(close_queue(ROOT),writes.client)
-     except (OSError,sqlite3.Error):pass
-     if rpc.reconcile_writes():continue
-    controller.tick(rpc)
-    controls=controller.snapshot();update(controls=controls,attachments=controls['tasks'])
-    managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[]))
-    update(managedTasks=managed_status)
-    automatic_tasks=controller.automatic_tasks(rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc))
-    collect(rpc,{**cfg,'tasks':automatic_tasks},scheduler)
+    generation=tray_release.begin('codex')
+    if generation is not None:
+     result=('waiting',0,'本机任务暂未完成交还，后台将重试。')
+     try:
+      if generation != release_generation:
+       controller.disable_for_tray()
+       release_generation=generation
+       handoff=CodexTrayRelease(stop,lambda:tray_release.continuing(release_generation),approvals.pending_for)
+      result=release_step(lambda:handoff.step(rpc,personal_sync,drained))
+      if rpc and rpc.closed:codex_activity.disconnect()
+     finally:
+      tray_release.finish('codex',generation,result)
+    elif tray_release.control_allowed():
+     for previous in drained[:]:
+      previous.project_writes.release_closed()
+      if not previous.project_writes.tickets:drained.remove(previous)
+     if not history_labels:history_labels=load_labels()
+     if rpc is None or rpc.closed:
+      if rpc:
+       codex_activity.disconnect()
+       if getattr(rpc,'draining',False):
+        rpc.p.wait(timeout=3)
+        if rpc.project_writes and rpc.project_writes.tickets:drained.append(rpc)
+       rpc.close()
+      client=device_client(cfg)
+      rpc=RPC(approvals,journal=journal,coordination=client) if client else RPC(approvals,journal=journal)
+      rpc.report_completion=codex_completed
+      rpc.personal_session=lambda tid: personal_sync.snapshot()['sessions'].get(tid) if personal_sync else None
+      rpc.personal_flow=lambda: personal_sync
+      rpc.control_allowed=tray_release.control_allowed
+     writes=getattr(rpc,'project_writes',None)
+     if writes:
+      try:flush_closes(close_queue(ROOT),writes.client)
+      except (OSError,sqlite3.Error):pass
+      if rpc.reconcile_writes():continue
+     controller.tick(rpc)
+     controls=controller.snapshot();update(controls=controls,attachments=controls['tasks'])
+     managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[])) if tray_release.managed_allowed() else ([],[])
+     update(managedTasks=managed_status)
+     automatic_tasks=controller.automatic_tasks(rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc))
+     collect(rpc,{**cfg,'tasks':automatic_tasks},scheduler)
+    approvals.expire()
     policy=ScopedPolicy(workspace,cfg.get('autoApprovalRules',[]))
     for token,value in list(approvals.items.items()):
      if value['decision'] is None and getattr(value['rpc'],'client_type','codex')=='codex':
-      if value['rpc'] is rpc and policy.allows(rpc,value['request']):approvals.decide(token,True)
+      if tray_release.control_allowed() and value['rpc'] is rpc and policy.allows(rpc,value['request']):approvals.decide(token,True)
       else:
        details=value['request'].get('params',{})
        operation=str(details.get('command') or details.get('reason') or value['request'].get('method','权限请求'))
@@ -271,7 +296,7 @@ def poll(stop):
    except Exception:
     failures+=1;update(serviceStatus='retrying; details withheld',updated=int(time.time()))
     native.notify('failure:'+str(int(time.time()//3600)),'Codex monitor retrying','Connection unavailable; no replacement research thread created.')
-   stop.wait(min(300,3*2**min(failures,6)))
+   tray_release.wait('codex',stop,3 if not tray_release.control_allowed() else min(300,3*2**min(failures,6)))
  finally:
   if rpc:
    if getattr(rpc,'project_writes',None) and not rpc.closed:rpc.reconcile_writes(shutdown=True)
@@ -358,17 +383,36 @@ def poll_claude(stop):
  from claude_rpc import ClaudeCodeRPC
  claude_controller=TaskControl(ROOT/'claude-task-control.sqlite3')
  claude_controller.seed(config().get('claudeAutoAttachThreads',[]),managed=False)
+ claude_controller.control_allowed=tray_release.control_allowed
+ release_generation=None
  claude_journal=ReplyLog(str(ROOT/'claude-replies.sqlite3'))
  native=WindowsNotifications(str(ROOT/'claude-windows-notifications.sqlite3'))
  try:
   while not stop.is_set():
    try:
-    if claude_rpc is None or claude_rpc.closed:
-     claude_rpc=ClaudeCodeRPC(approvals=approvals,journal=claude_journal,drafts_path=ROOT/'claude-drafts.json')
-    claude_controller.tick(claude_rpc)
-    schedule=claude_controller.tick_auto_progress(claude_rpc)
+    generation=tray_release.begin('claude')
+    schedule=[]
+    threads=snapshot()['claude']['threads']
+    if generation is not None:
+     result=('waiting',0,'本机 Claude Code 暂未完成交还，后台将重试。')
+     try:
+      if generation != release_generation:
+       claude_controller.disable_for_tray()
+       release_generation=generation
+      if claude_rpc is None or claude_rpc.drain_for_tray():
+       result=('released',0,'本机 Claude Code 控制权已释放。')
+      else:
+       result=('waiting',len(claude_rpc.owned_threads),'等待本机 Claude Code 轮次和审批结束。')
+     finally:
+      tray_release.finish('claude',generation,result)
+    elif tray_release.control_allowed():
+     if claude_rpc is None or claude_rpc.closed:
+      claude_rpc=ClaudeCodeRPC(approvals=approvals,journal=claude_journal,drafts_path=ROOT/'claude-drafts.json')
+      claude_rpc.control_allowed=tray_release.control_allowed
+     claude_controller.tick(claude_rpc)
+     schedule=claude_controller.tick_auto_progress(claude_rpc)
+     threads=claude_rpc.call('thread/list',{'limit':50}).get('data',[])
     controls=claude_controller.snapshot()
-    threads=claude_rpc.call('thread/list',{'limit':50}).get('data',[])
     names=controls.get('names') or {}
     for item in threads:
      if item.get('id') in names:item['title']=names[item['id']]
@@ -384,7 +428,7 @@ def poll_claude(stop):
     update(claude={'connection':'disconnected','updated':int(time.time()),'threads':[],
                    'controls':claude_controller.snapshot(),'quota':None,'quotaStatus':'unknown','schedule':[],
                    'serviceStatus':str(error)[:300] if isinstance(error,FileNotFoundError) else 'Claude Code 连接待检查，请查看本机 CLI。'})
-   stop.wait(3)
+   tray_release.wait('claude',stop,3)
  finally:
   if claude_rpc:claude_rpc.close()
   claude_controller.db.close();claude_journal.db.close();native.db.close()

@@ -3,6 +3,7 @@
 import queue
 import subprocess
 import threading
+import time
 
 from rpc_errors import RPCError
 
@@ -16,6 +17,7 @@ class TrayRelease:
         self.generation = 0
         self.active = set()
         self.progress = {}
+        self.wake = {client: threading.Event() for client in CLIENTS}
 
     def set(self, hidden):
         with self.lock:
@@ -23,6 +25,8 @@ class TrayRelease:
                 self.generation += 1
                 self.progress = dict.fromkeys(CLIENTS, ("releasing", 0, "正在检查本机任务。"))
             self.hidden = hidden
+            for event in self.wake.values():
+                event.set()
 
     def control_allowed(self):
         with self.lock:
@@ -60,6 +64,15 @@ class TrayRelease:
             releasing = [row for row in rows if row[0] == "releasing"]
             state, _, detail = (waiting or releasing or rows)[0]
             return {"state": state, "pending": sum(row[1] for row in rows), "detail": detail}
+
+    def wait(self, client, stop, seconds):
+        wake = self.wake[client]
+        deadline = time.monotonic() + seconds
+        while not stop.is_set():
+            left = deadline - time.monotonic()
+            if left <= 0 or wake.wait(min(left, .25)):
+                wake.clear()
+                return
 
 
 class CodexTrayRelease:
