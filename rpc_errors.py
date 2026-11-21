@@ -6,3 +6,7 @@ class RPCError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.detail = detail
+
+
+class RPCNotSent(ConnectionError):
+    """The connection ended before writing any bytes of this request."""

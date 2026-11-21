@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Callable
 from automation import APPROVAL_METHODS
 
 
-from rpc_errors import RPCError
+from rpc_errors import RPCError, RPCNotSent
 from coordination_client import ControlDenied, ProjectWrites, personal_project_at
 
 
@@ -103,10 +103,12 @@ class UniversalRPC:
     def send(self, x: Dict[str, Any], guard=None):
         """Recheck local stop intent after acquiring the transport write lock."""
         with self.write_lock:
+            if self.closed:
+                raise RPCNotSent('RPC disconnected before send')
             if guard is not None and not guard():
                 raise RPCError(detail='任务状态已变化，未发送指令。')
             if self.closed:
-                raise ConnectionError('RPC disconnected')
+                raise RPCNotSent('RPC disconnected before send')
             self.p.stdin.write(json.dumps(x) + '\n')
             self.p.stdin.flush()
 

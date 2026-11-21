@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from rpc_errors import RPCError
+from rpc_errors import RPCError, RPCNotSent
 from coordination_client import ControlDenied
 
 CODEX_PERMISSIONS = {
@@ -380,10 +380,21 @@ class TaskControl:
             with self.lock:
                 self.runtime[tid] = loaded
         with self.lock:
-            can_control = self.runtime.get(tid, {}).get('canControl')
-        if tid not in rpc.owned_threads or not can_control:
-            raise ValueError('自动推进已暂停；原窗口仍在控制任务，无法从本监控中断。' if action == 'pause' else '原窗口占用写入锁，尚无控制权；没有发送消息。')
-        active = self._active_turn(rpc, tid)
+            current = self.runtime.get(tid, {})
+        if tid not in rpc.owned_threads or not current.get('canControl'):
+            if action == 'pause':
+                raise ValueError('自动推进已暂停；原窗口仍在控制任务，无法从本监控中断。')
+            reason = current.get('message') or '尚未取得此任务的写入权。'
+            raise ValueError(reason + ' 指令尚未发送。')
+        try:
+            active = self._active_turn(rpc, tid)
+            goal_status = self._goal(rpc, tid).get('status') if action == 'resume' else None
+        except (ConnectionError, TimeoutError, queue.Empty) as error:
+            if is_claude or action not in ('message', 'resume'):
+                raise
+            if isinstance(error, RPCNotSent) or getattr(rpc, 'closed', False):
+                raise RPCNotSent('RPC disconnected during the state check before send') from error
+            raise ValueError('未能读取当前轮次状态，指令尚未发送。请稍后重试。') from error
         if action == 'pause':
             self._execute('UPDATE targets SET paused=1 WHERE id=?', (tid,))
             with self.lock:
@@ -397,7 +408,6 @@ class TaskControl:
                 rpc.call('turn/interrupt', {'threadId': tid, 'turnId': active})
             return '已请求暂停当前执行，自动推进已停止。' if active else '已暂停；当前没有运行中的轮次。'
         if action == 'resume':
-            goal_status = self._goal(rpc, tid).get('status')
             if goal_status == 'complete':
                 raise ValueError('目标已完成；如需新增工作，请先确认新的任务范围。')
             if goal_status == 'budgetLimited':
@@ -451,8 +461,15 @@ class TaskControl:
             try:
                 if not self.control_allowed():
                     raise ValueError('本机正在交还控制权，未执行操作。')
+                if action in ('message', 'resume') and getattr(rpc, 'client_type', 'codex') == 'codex' and getattr(rpc, 'closed', False):
+                    raise RPCNotSent('RPC disconnected before dispatch')
                 result = self._perform(rpc, tid, action, text, key)
                 status = 'succeeded'
+            except RPCNotSent:
+                if action in ('message', 'resume') and self._send_allowed(tid, key, action):
+                    status, result = 'queued', '连接中断，指令尚未发送。重连后将继续发送。'
+                else:
+                    status, result = 'cancelled', '连接中断，未执行操作。'
             except (RPCError, ValueError) as error:
                 result = str(error) if isinstance(error, ValueError) else '接口拒绝操作：' + str(error.detail or '')[:300]
                 status = 'failed'
