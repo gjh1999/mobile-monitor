@@ -178,8 +178,12 @@ def snapshot():
  # short, DB-only snapshot so a slow RPC never leaves Pause/Send falsely enabled.
  for client,target in (('codex',controller),('claude',claude_controller)):
   if target is None or not hasattr(target,'snapshot'):continue
+  lock=getattr(target,'lock',None)
+  if lock is not None and not lock.acquire(blocking=False):continue
   try:controls=target.snapshot()
   except sqlite3.Error:continue
+  finally:
+   if lock is not None:lock.release()
   view=result if client=='codex' else result.setdefault('claude',{})
   view['controls']=controls;view['attachments']=controls['tasks']
  return result
@@ -261,7 +265,7 @@ class CodexStatus:
    for item in data:
     thread=item['id']
     history=history_labels.get(thread,{})
-    threads.append({'id':thread,'title':names.get(thread) or item.get('name') or item.get('title') or history.get('title') or '未命名历史任务',
+    threads.append({'id':thread,'nativeName':item.get('name') or '', 'title':names.get(thread) or item.get('name') or item.get('title') or history.get('title') or '未命名历史任务',
                     'source':history.get('source'),'cwd':item.get('cwd') or history.get('cwd'),
                     'githubProject':github_id((item.get('gitInfo') or {}).get('originUrl')),
                     'status':item.get('status',{'type':'unknown'}),'updatedAt':item.get('updatedAt')})

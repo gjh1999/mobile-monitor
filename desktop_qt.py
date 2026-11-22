@@ -761,6 +761,7 @@ class ManualSyncDialog(QDialog):
 class MainWindow(QMainWindow):
     history_ready = Signal(object, object)
     submission_ready = Signal(object, object, object)
+    title_submission_ready = Signal(object, object, object)
     approval_ready = Signal(object)
     codex_options_ready = Signal(object, object)
     grouping_changed = Signal(str)
@@ -787,9 +788,11 @@ class MainWindow(QMainWindow):
         self.task_drafts = {}
         self._pending_operations = {}
         self._local_messages = {}
+        self._optimistic_titles = {}
         self._matched_messages = {}
         self._submission_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='lanxi-submit')
         self.submission_ready.connect(self.submission_finished, Qt.ConnectionType.QueuedConnection)
+        self.title_submission_ready.connect(self.title_submission_finished, Qt.ConnectionType.QueuedConnection)
         self._started_at = time.time()
         self._seen_operation_states = {'codex': {}, 'claude': {}}
         self._error_events = {}
@@ -1039,6 +1042,10 @@ class MainWindow(QMainWindow):
         conversation_title.addWidget(self.title_stack)
         conversation_header.addLayout(conversation_title, 1)
         self.build_task_actions()
+        self.title_sync_button = QPushButton('待同步')
+        self.title_sync_button.clicked.connect(self.resolve_title_conflict)
+        self.title_sync_button.hide()
+        conversation_header.addWidget(self.title_sync_button)
         conversation_header.addWidget(self.conversation_header.actions)
         conversation_layout.addWidget(self.conversation_header)
         divider = QFrame()
@@ -1509,6 +1516,8 @@ class MainWindow(QMainWindow):
         return ''
 
     def quit_app(self):
+        if not self.project_intro.confirm_exit():
+            return
         self._quitting = True
         self.close()
         # Closing an already-hidden window does not emit lastWindowClosed.
@@ -1523,7 +1532,6 @@ class MainWindow(QMainWindow):
         self._quitting = True
         if self.notebook is not None:
             self.notebook.flush()
-        self.project_intro.flush()
         self.workspace_splitter.flush()
         self.stop.set()
         self.organizer.close()
@@ -1606,7 +1614,7 @@ class MainWindow(QMainWindow):
         relative = path.relative_to(boundary) if boundary and path.is_relative_to(boundary) else path
         self._project_intro_group = item.data(0, TASK_DIRECTORY_ROLE)
         self.cancel_rename()
-        self.project_intro.show_project(folder_id(relative.as_posix()), item.text(0), workspace)
+        self.show_intro_data(item, folder_id(relative.as_posix()), workspace)
         self.task_detail_pages.setCurrentWidget(self.project_intro_card)
         if schedule and monitor.personal_sync and path.is_dir():
             project = self.project_sync_id(workspace, boundary)
@@ -1616,8 +1624,17 @@ class MainWindow(QMainWindow):
     def show_conversation_page(self):
         if self._project_intro_group is not None:
             self._project_intro_group = None
-            self.project_intro.flush()
             self.task_detail_pages.setCurrentWidget(self.conversation_card)
+
+    def show_intro_data(self, item, key, workspace):
+        entry = next((row for row in self._last_snapshot.get('indexedProjects', ())
+                      if row.get('cwd') and Path(row['cwd']) == Path(workspace)), {})
+        repository = next((row['githubProject'] for row in self._last_snapshot.get('threads', ())
+                           if row.get('githubProject') and row.get('cwd') and Path(row['cwd']) == Path(workspace)), '')
+        if not repository:
+            repository = next((project for project, directory in self._project_sync_view.get('projects', {}).items()
+                               if Path(directory) == Path(workspace)), '')
+        self.project_intro.show_project(key, item.text(0), workspace, repository=repository, branch=entry.get('branch', ''))
 
     def clicked_task(self, item, _column):
         if item.data(0, Qt.ItemDataRole.UserRole) == self.selected_thread:
@@ -1908,6 +1925,7 @@ class MainWindow(QMainWindow):
         if self._project_intro_group is not None:
             header = self.project_items.get(self._project_intro_group)
             if header is not None and header.data(0, PROJECT_WORKSPACE_ROLE):
+                self.show_intro_data(header, self.project_intro.key, header.data(0, PROJECT_WORKSPACE_ROLE))
                 if self.task_choice.currentItem() is None:
                     with QSignalBlocker(self.task_choice):
                         self.task_choice.setCurrentItem(header)
@@ -1954,7 +1972,8 @@ class MainWindow(QMainWindow):
             history = labels.get(tid, {})
             directory = next((value for value in (thread.get('projectRoot'), thread.get('cwd'), control.get('cwd'), history.get('cwd'))
                               if isinstance(value, str) and value), '')
-            title = thread.get('title') if tid.startswith(ENTRY_PREFIX) else names.get(tid)
+            optimistic = self._optimistic_titles.get((client, tid))
+            title = thread.get('title') if tid.startswith(ENTRY_PREFIX) else (optimistic[1] if optimistic else names.get(tid))
             if not title:
                 project = project_group(directory)[1]
                 title = display_text(self.session_titles.title(
@@ -2064,6 +2083,13 @@ class MainWindow(QMainWindow):
             self.cancel_rename()
         task_title = self.task_title() or '未尽的话，可以接着说。'
         self.conversation_heading.setText(task_title)
+        title_state = self.current_title_sync(snap)
+        self.title_sync_button.setVisible(bool(title_state))
+        if title_state:
+            conflict = title_state.get('state') == 'conflict'
+            self.title_sync_button.setText('标题冲突' if conflict else '待同步')
+            self.title_sync_button.setEnabled(conflict)
+            self.title_sync_button.setToolTip(title_state.get('message', '等待 Codex 确认标题。'))
         project_entry = self.selected_thread.startswith(ENTRY_PREFIX)
         renameable = self.selected_thread and not project_entry
         self.conversation_heading.setToolTip(f'{task_title}\n双击标题或按 F2 改名' if renameable else '')
@@ -2106,7 +2132,63 @@ class MainWindow(QMainWindow):
             return
         self.cancel_rename()
         if title != self.task_title():
-            self.operate('rename', title, tid=target[1])
+            if target[0] == 'codex':
+                title = ' '.join(title.split())
+                row = next((row for row in self._last_snapshot.get('threads', ()) if row['id'] == target[1]), {})
+                state = self.current_title_sync(self._last_snapshot)
+                base = state.get('nativeTitle') if state and state.get('state') == 'conflict' else row.get('nativeName')
+                self.queue_title(target, 'rename_codex', {'title': title, 'base': base}, title)
+            else:
+                self.operate('rename', title, tid=target[1])
+
+    def current_title_sync(self, snap):
+        if self.client != 'codex':
+            return None
+        if (self.client, self.selected_thread) in self._optimistic_titles:
+            return {'state': 'pending'}
+        return (snap.get('controls') or {}).get('titleSync', {}).get(self.selected_thread)
+
+    def queue_title(self, key, action, payload, title):
+        controller = monitor.get_controller(key[0])
+        if controller is None:
+            self._popup('标题未保存', '后台正在启动，请稍候重试。')
+            return
+        revision = str(uuid.uuid4())
+        if title is not None:
+            self._optimistic_titles[key] = revision, title
+            self.refresh()
+        future = self._submission_pool.submit(controller.submit, key[1], action, json.dumps(payload), revision)
+        future.add_done_callback(lambda result: self.title_submission_ready.emit(key, revision, result))
+
+    def title_submission_finished(self, key, revision, future):
+        current = self._optimistic_titles.get(key)
+        if current and current[0] == revision:
+            del self._optimistic_titles[key]
+        self.refresh()
+        try:
+            future.result()
+        except Exception as error:
+            if current and current[0] == revision and key == (self.client, self.selected_thread):
+                self.begin_rename()
+                self.title_editor.setText(current[1])
+            self._popup('标题未保存', str(error))
+
+    def resolve_title_conflict(self):
+        state = self.current_title_sync(self._last_snapshot)
+        if not state or state.get('state') != 'conflict':
+            return
+        key = self.client, self.selected_thread
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle('选择会话标题')
+        dialog.setTextFormat(Qt.TextFormat.PlainText)
+        dialog.setText(f'待同步标题  {state["title"]}\nCodex 原生标题  {state.get("nativeTitle") or "未命名"}')
+        native = dialog.addButton('采用原生标题', QMessageBox.ButtonRole.AcceptRole)
+        submit = dialog.addButton('再次提交新标题', QMessageBox.ButtonRole.ActionRole)
+        dialog.addButton('取消', QMessageBox.ButtonRole.RejectRole)
+        dialog.exec()
+        if dialog.clickedButton() in (native, submit):
+            self.queue_title(key, 'resolve_codex_title', {'revision': state['revision'],
+                             'useNative': dialog.clickedButton() is native}, None)
 
     def open_project(self):
         if self.has_local_project():
@@ -2871,7 +2953,6 @@ class MainWindow(QMainWindow):
             event.ignore()
             if self.notebook is not None and not self.notebook.flush():
                 return
-            self.project_intro.flush()
             if self._tray_hidden:
                 return
             self._tray_hidden = True
@@ -2880,6 +2961,9 @@ class MainWindow(QMainWindow):
             self.refresh_tray_release()
             self.tray.showMessage('正在交还本机控制权', '右键点击澜汐托盘图标查看交还状态。',
                                   QSystemTrayIcon.MessageIcon.Information, 3000)
+            return
+        if not self._quitting and not self.project_intro.confirm_exit():
+            event.ignore()
             return
         self.shutdown()
         event.accept()
