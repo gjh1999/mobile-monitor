@@ -2,6 +2,12 @@
 
 > 历史验收日志。各条结论只描述记录当时的版本和环境；旧文件名与路径的迁移见 [整理记录](REORGANIZATION_2026-11-14.md)，当前操作见 [运行与维护](../RUNBOOK.md)。
 
+## 2026-11-22 R51 独立会话审批决定复验
+
+- 候选 `4673d17`。Windows 11 和已安装 VS Code 扩展随附的 Codex，在隔离排查目录、独立 `CODEX_HOME`、回环模型夹具及 Windows PowerShell `Restricted` 下生成真实工具审批。R50 的弹窗只有提醒操作，R51 新增对具体请求提交决定。
+- 运行 `.venv\Scripts\python.exe -B build-exe/verification/hook-approval-r51/check_native_decisions.py deny`，并分别以 `allow`、`defer` 复跑。先匹配窗体中本次工作目录和专用测试指令再点击。三种选择均由 Codex 处理。接受后临时证明文件存在且内容正确，拒绝后无该文件，返回 Codex 后原生请求继续可见并在该连接中拒绝。最终记录位于 `build-exe/verification/hook-approval-r51/final-*.log`。
+- 验收使用隔离会话与可写临时目录。用户 `Gemini305` 会话和另一台实体电脑的 R51 Hook 升级待现场核对。 [验收工单](../DELIVERY_STATUS.md#hook-approval-decisions)
+
 ## 2026-11-22 R50 审批弹窗与跨机提醒复验
 
 - Windows 11、Python 3.14.7、PySide6 6.12.0，候选提交 `365520d`。`.venv\Scripts\python.exe -B -m unittest tests.test_codex_approval_alerts tests.test_codex_watch tests.test_monitor tests.test_desktop_storage -q` 通过 21 项，耗时 1.268 秒。覆盖同一数据目录只保留当前 Hook、第三方 Hook 保留、跨机完成提醒本机设置及旧事件跳过。
