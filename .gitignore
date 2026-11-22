@@ -9,6 +9,7 @@ lanxi-private-workspace.join
 local-model-api.json
 local-model-api-*.tmp
 claude-drafts.json
+会话摘要/
 *.sqlite3
 *.sqlite3-*
 *.log
