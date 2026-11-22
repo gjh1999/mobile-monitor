@@ -5,6 +5,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+import threading
 import time
 from concurrent.futures import Future
 from contextlib import closing
@@ -16,7 +17,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QTimer, Qt, QUrl
-from PySide6.QtGui import QColor, QEnterEvent, QFontDatabase, QImage, QMouseEvent, QRawFont, QTextCursor, QTextDocument
+from PySide6.QtGui import QColor, QEnterEvent, QFontDatabase, QImage, QInputMethodEvent, QMouseEvent, QRawFont, QTextCursor, QTextDocument
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton
 
@@ -343,6 +344,69 @@ def wait_until(condition, seconds=2):
         QApplication.processEvents()
         time.sleep(.005)
     return condition()
+
+
+def check_fast_send(window, codex, claude, data):
+    previous = copy.deepcopy(data)
+    for client, controller, thread in (('codex', codex, CODEX), ('claude', claude, CLAUDE)):
+        task = next(row for row in controller.data['tasks'] if row['threadId'] == thread)
+        task.update(canControl=True, paused=False, managed=False, threadStatus={'type': 'idle'})
+        window.switch_client(client)
+        window.change_task(client, thread)
+        window.refresh()
+        text = '即时反馈验收 ' + client
+        composer = window.message_edit
+        composer.setPlainText(text)
+        composer.setFocus()
+        gate = threading.Event()
+        original = controller.submit
+        before = len(controller.calls)
+
+        def blocked(tid, action, content, operation):
+            if action == 'message':
+                assert gate.wait(8)
+            return original(tid, action, content, operation)
+
+        try:
+            with patch.object(controller, 'submit', side_effect=blocked):
+                QApplication.sendEvent(composer, QInputMethodEvent('中文', []))
+                QTest.keyClick(composer, Qt.Key.Key_Return)
+                assert len(controller.calls) == before and composer.toPlainText() == text
+                QApplication.sendEvent(composer, QInputMethodEvent('', []))
+                started = time.perf_counter()
+                QTest.keyClick(composer, Qt.Key.Key_Return)
+                elapsed = (time.perf_counter() - started) * 1000
+                assert elapsed <= 100, (client, elapsed)
+                assert text in window.conversation.toPlainText() and '待发送' in window.conversation.toPlainText()
+                assert not composer.toPlainText() and composer.hasFocus()
+                composer.setPlainText('此时仍可输入')
+                window.switch_client('claude' if client == 'codex' else 'codex')
+                assert text not in window.conversation.toPlainText()
+                window.switch_client(client)
+                assert composer.toPlainText() == '此时仍可输入'
+                QTest.qWait(5000)
+                assert len(controller.calls) == before and '待发送' in window.conversation.toPlainText()
+                gate.set()
+                assert wait_until(lambda: len(controller.calls) == before + 1)
+            operation = controller.calls[-1][3]
+            window.refresh()
+            QTest.qWait(5000)
+            assert '待发送' in window.conversation.toPlainText()
+            op = next(row for row in controller.data['operations'] if row['id'] == operation)
+            op.update(status='succeeded', message='已送达', messageTurnId='fixture-turn')
+            window.refresh()
+            assert '已送达' in window.conversation.toPlainText()
+            data['messages'] = [{'role': 'user', 'text': text, 'id': operation if client == 'claude' else 'native-item',
+                                 'turnId': 'fixture-turn', 'time': time.time()}]
+            assert wait_until(lambda: (window.refresh_conversation() or True)
+                              and operation not in window._local_messages[(client, thread)])
+            assert window.conversation.toPlainText().count(text) == 1
+            print(f'{client} optimistic send rendered in {elapsed:.1f} ms with admission and delivery held for five seconds each.')
+        finally:
+            gate.set()
+            data.clear()
+            data.update(copy.deepcopy(previous))
+            composer.clear()
 
 
 def check_markdown(window, data, output):
@@ -1580,6 +1644,8 @@ def main():
             check_automatic_pairing(window)
             check_markdown(window, data, args.output)
             check_process_bubbles(window, args.output)
+            check_fast_send(window, codex, claude, data)
+            window.switch_client('codex')
             from project_library import ENTRY_PREFIX, ProjectLibrary, configured_root
             with tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
