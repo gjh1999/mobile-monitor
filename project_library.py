@@ -1,11 +1,13 @@
 """Discover local projects and connect their saved Codex conversations to the desktop."""
 
+import configparser
 import json
 import stat
 import uuid
 from pathlib import Path
 
 from handoff_sync import atomic_write
+from code_sync import github_id
 from history_labels import read_label
 from personal_memory import NOTE_TYPES, safe_path
 from plain_projects import EXCLUDED, INDEX as FOLDER_INDEX
@@ -70,11 +72,30 @@ def inspect_project(path, overrides):
         or (path / FOLDER_INDEX).is_file()
     ):
         return None
-    branch = ""
+    branch = repository = ""
+    git = path / '.git'
     try:
-        with (path / ".git" / "HEAD").open(encoding="utf-8") as stream:
-            branch = stream.readline(1024).strip().removeprefix("ref: refs/heads/")
+        if git.is_file():
+            with git.open(encoding='utf-8') as stream:
+                line = stream.readline(4096).strip()
+            if line.startswith('gitdir: '):
+                git = path / line.removeprefix('gitdir: ')
+        with (git / 'HEAD').open(encoding='utf-8') as stream:
+            head = stream.readline(1024).strip()
+        branch = head.removeprefix('ref: refs/heads/') if head.startswith('ref: refs/heads/') else ''
     except (OSError, UnicodeError):
+        pass
+    try:
+        config_dir = git
+        common = git / 'commondir'
+        if common.is_file():
+            with common.open(encoding='utf-8') as stream:
+                config_dir = git / stream.readline(4096).strip()
+        config = configparser.ConfigParser(interpolation=None, strict=False)
+        with (config_dir / 'config').open(encoding='utf-8') as stream:
+            config.read_string(stream.read(65536))
+        repository = github_id(config.get('remote "origin"', 'url', fallback='')) or ''
+    except (OSError, UnicodeError, configparser.Error):
         pass
     memory = ""
     notes = []
@@ -99,6 +120,7 @@ def inspect_project(path, overrides):
         "memory": memory,
         "notes": notes,
         "branch": branch,
+        "githubProject": repository,
     }
 
 

@@ -1315,6 +1315,7 @@ def main():
             assert window.action_buttons['pause'].isEnabled()
             window.message_edit.setPlainText('请优先处理这个新指令')
             QTest.mouseClick(window.send_button, Qt.MouseButton.LeftButton)
+            assert wait_until(lambda: claude.calls[-1][1] == 'message')
             assert claude.calls[-1][:3] == (CLAUDE, 'message', '请优先处理这个新指令')
             message_id = claude.calls[-1][3]
             op = next(o for o in claude.data['operations'] if o['id'] == message_id)
@@ -1387,7 +1388,7 @@ def main():
             assert not any(p.isVisible() for p in window.findChildren(QMessageBox))
             labels = '\n'.join(w.text() for w in window.findChildren(QLabel))
             assert CODEX not in labels and CLAUDE not in labels
-            # Enter adds a newline; Ctrl+Enter submits once through the same route.
+            # Shift+Enter adds a newline and Enter submits once through the same route.
             task['paused'] = False
             task['threadStatus'] = {'type': 'active'}
             monitor.update(claude={'connection': 'connected', 'threads': [
@@ -1397,10 +1398,10 @@ def main():
             before = len(claude.calls)
             window.message_edit.setPlainText('键盘发送')
             window.message_edit.moveCursor(QTextCursor.MoveOperation.End)
-            QTest.keyClick(window.message_edit, Qt.Key.Key_Return)
+            QTest.keyClick(window.message_edit, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier)
             assert len(claude.calls) == before and window.message_edit.toPlainText().endswith('\n')
-            QTest.keyClick(window.message_edit, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
-            assert len(claude.calls) == before + 1
+            QTest.keyClick(window.message_edit, Qt.Key.Key_Return)
+            assert wait_until(lambda: len(claude.calls) == before + 1)
             assert claude.calls[-1][:3] == (CLAUDE, 'message', '键盘发送\n')
             assert window.message_edit.toPlainText() == ''
             task['paused'] = True
@@ -1622,8 +1623,12 @@ def main():
                     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=window.task_choice.visualItemRect(header).center())
                     assert window.task_detail_pages.currentWidget() is window.project_intro_card
                     assert window.project_intro.title.text() == project.name
-                    window.project_intro.purpose.setPlainText('本机验收项目')
-                    window.project_intro.progress.setPlainText('完成项目入口测试\n下一步验证重启')
+                    for field, value in ((window.project_intro.purpose, '本机验收项目'),
+                                         (window.project_intro.progress, '完成项目入口测试\n下一步验证重启')):
+                        QTest.mouseDClick(field.preview, Qt.MouseButton.LeftButton)
+                        field.editor.setPlainText(value)
+                        QTest.keyClick(field.editor, Qt.Key.Key_Return)
+                        assert field.currentWidget() is field.reading
                     intro_key = window.project_intro.key
                     window.refresh()
                     assert window.task_detail_pages.currentWidget() is window.project_intro_card

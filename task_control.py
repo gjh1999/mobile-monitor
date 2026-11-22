@@ -206,7 +206,7 @@ class TaskControl:
             name = thread.get('name') or ''
             with self.lock:
                 if self.connection is rpc and tid in self.runtime:
-                    self.runtime[tid]['nativeTitle'] = name
+                    self.runtime[tid]['nativeName'] = name
             return name
 
         try:
@@ -257,7 +257,7 @@ class TaskControl:
                     pass  # Subsequent live events can still identify the turn.
             return dict(threadId=tid, mode='control', status='attached', message='已接入控制，可暂停或发送消息。', canControl=True,
                         threadStatus=thread.get('status'), title=thread.get('name') or thread.get('title'), cwd=thread.get('cwd'),
-                        nativeTitle=(thread.get('name') or '') if 'name' in thread else None,
+                        nativeName=(thread.get('name') or '') if 'name' in thread else None,
                         goalStatus=self._goal(rpc, tid).get('status'), retryAt=time.time() + 3600,
                         codexSettings=self._codex_settings(response))
         except RPCError as error:
@@ -275,7 +275,7 @@ class TaskControl:
                            else '原' + client + '窗口仍在占用会话，只读关注中；请先退出原会话再接入控制。')
                 return dict(threadId=tid, mode='observe', status='observing', title=thread.get('name') or thread.get('title'), cwd=thread.get('cwd'),
                             message=message, canControl=False,
-                            nativeTitle=(thread.get('name') or '') if 'name' in thread else None,
+                            nativeName=(thread.get('name') or '') if 'name' in thread else None,
                             threadStatus=thread.get('status'), goalStatus=self._goal(rpc, tid).get('status'),
                             retryAt=time.time() + (3 if isinstance(error, ControlDenied) else 60))
             return dict(threadId=tid, mode='none', status='failed', message='接入失败：' + detail[:180], canControl=False, retryAt=time.time() + 300)
@@ -789,13 +789,17 @@ class TaskControl:
                 with self.lock:
                     current = self.runtime.get(tid, {})
                 if current.get('canControl') and time.time() - current.get('checkedAt', 0) >= 1:
+                    native_name = {}
                     try:
-                        status = rpc.call('thread/read', {'threadId': tid, 'includeTurns': False}).get('thread', {}).get('status')
+                        thread = rpc.call('thread/read', {'threadId': tid, 'includeTurns': False}).get('thread', {})
+                        status = thread.get('status')
+                        if getattr(rpc, 'client_type', 'codex') == 'codex' and 'name' in thread:
+                            native_name['nativeName'] = thread.get('name') or ''
                         goal = self._goal(rpc, tid).get('status')
                     except RPCError:
                         status, goal = {'type': 'unknown'}, None
                     with self.lock:
-                        current.update(threadStatus=status, goalStatus=goal, checkedAt=time.time())
+                        current.update(threadStatus=status, goalStatus=goal, checkedAt=time.time(), **native_name)
         except ConnectionError:
             if not getattr(rpc, 'closed', False):
                 raise

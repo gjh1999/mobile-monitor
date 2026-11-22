@@ -1090,7 +1090,7 @@ class MainWindow(QMainWindow):
         self.send_button.setFixedSize(34, 34)
         self.send_button.setToolTip('Enter 发送 · Shift+Enter 换行')
         self.send_button.setAccessibleName('发送指令')
-        self.send_button.clicked.connect(lambda: self.operate('message'))
+        self.send_button.clicked.connect(self.submit_composer)
         send_row.addWidget(self.send_button)
         composer_layout.addLayout(send_row)
         conversation_layout.addWidget(composer_box)
@@ -1629,7 +1629,7 @@ class MainWindow(QMainWindow):
     def show_intro_data(self, item, key, workspace):
         entry = next((row for row in self._last_snapshot.get('indexedProjects', ())
                       if row.get('cwd') and Path(row['cwd']) == Path(workspace)), {})
-        repository = next((row['githubProject'] for row in self._last_snapshot.get('threads', ())
+        repository = entry.get('githubProject') or next((row['githubProject'] for row in self._last_snapshot.get('threads', ())
                            if row.get('githubProject') and row.get('cwd') and Path(row['cwd']) == Path(workspace)), '')
         if not repository:
             repository = next((project for project, directory in self._project_sync_view.get('projects', {}).items()
