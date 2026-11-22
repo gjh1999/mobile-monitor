@@ -57,7 +57,7 @@ Claude 不调用 Codex 的 `Scheduler.tick()` 或 `ManagedTasks.sync()`。其显
 
 ### 全局 Codex 监控与审批队列
 
-独立的 `codex-watch` worker 增量读取当前 Codex 用户目录下的原生会话完成事件。它也收集 RPC 完成事件，按会话和轮次发出一次 Windows 完成提醒。共享 App Server 已运行时，后台通过本机 `app-server proxy` 发现等待审批的会话并订阅实时请求，用户无需在澜汐接入该任务。独立进程中的原生审批仍由它自己的客户端处理。后台只通过原请求连接处理可核对的审批请求。
+独立的 `codex-watch` worker 增量读取当前 Codex 用户目录下的原生会话完成事件。它也收集 RPC 完成事件，按会话和轮次发出一次 Windows 完成提醒。共享 App Server 已运行时，后台通过本机 `app-server proxy` 发现等待审批的会话并订阅实时请求。对独立 Codex 进程，R51 的 `PermissionRequest` Hook 可以为具备完整预览的请求打开本机 WinForms 对话框，并由该 Hook 的标准输出提交本次决定。关闭、超时及无法完整预览的请求走原生审批。澜汐启动的 Codex App Server 继续通过原 JSON-RPC 请求连接处理审批。
 
 连接云服务器时，各台运行澜汐的电脑通过现有私人工作区记录通道交换完成事件和待审批项。记录包含来源设备和审批详情，协调服务按工作区鉴权。离线记录通过心跳判定过期。跨机决定带有独立请求 ID，来源电脑逐项检查有效期、详情和权限后执行，并发布实际结果。原请求重复投递沿用原结果。
 

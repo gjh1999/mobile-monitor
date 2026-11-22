@@ -8,7 +8,9 @@ Windows 原生桌面软件，用于集中查看和控制本机 Codex / Claude Co
 
 新 Windows 电脑可直接双击从发布机复制的 `release/笔记本下载/下载澜汐最新版.cmd`，自动加入私人工作区并下载最新版 ZIP。 [新电脑安装说明](docs/PORTABLE_CHECK.md#在另一台-windows-电脑使用)
 
-本机 `release/` 根目录保留当前稳定版 `Lanxi-R50-Windows-Private.zip` 和开发版 `Lanxi.exe`。`release/history/` 另存最近两个被替换的稳定版 ZIP，供回滚使用。 [发布目录维护](docs/RUNBOOK.md#构建-exe)
+本机 `release/` 根目录保留当前稳定版 `Lanxi-R51-Windows-Private.zip` 和开发版 `Lanxi.exe`。`release/history/` 另存最近两个被替换的稳定版 ZIP，供回滚使用。 [发布目录维护](docs/RUNBOOK.md#构建-exe)
+
+R51 的本机独立 Codex 弹窗支持「接受一次」「拒绝」和「回到 Codex」。升级后从托盘更新 Hook，再在 Codex 中审查并信任。 [审批与提醒](docs/DESKTOP.md#审批窗口)
 
 R50 修正审批 Hook 更新及跨机审批重连重复弹窗。其他电脑的完成提醒默认关闭，可在托盘按需启用。 [审批与提醒](docs/DESKTOP.md#审批窗口)
 
