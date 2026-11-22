@@ -2134,9 +2134,11 @@ class MainWindow(QMainWindow):
         if title != self.task_title():
             if target[0] == 'codex':
                 title = ' '.join(title.split())
+                controls = self._last_snapshot.get('controls') or {}
+                current = next((row for row in controls.get('tasks', ()) if row['threadId'] == target[1]), {})
                 row = next((row for row in self._last_snapshot.get('threads', ()) if row['id'] == target[1]), {})
                 state = self.current_title_sync(self._last_snapshot)
-                base = state.get('nativeTitle') if state and state.get('state') == 'conflict' else row.get('nativeName')
+                base = state.get('nativeTitle') if state and state.get('state') == 'conflict' else current.get('nativeName', row.get('nativeName'))
                 self.queue_title(target, 'rename_codex', {'title': title, 'base': base}, title)
             else:
                 self.operate('rename', title, tid=target[1])
@@ -2485,14 +2487,15 @@ class MainWindow(QMainWindow):
             if message['role'] != 'user':
                 continue
             turn, message_id = message.get('turnId'), message.get('id')
-            identity = (turn, message_id) if message_id else (turn, message['time'], message['text'])
+            stamp = message.get('time', 0)
+            identity = (turn, message_id) if message_id else (turn, stamp, message['text'])
             counts[identity] += 1
             occurrence = identity, counts[identity]
             if occurrence in matched:
                 continue
             operation = message_id if message_id in pending else next((identifier for identifier, item in pending.items()
                 if turn and turn == item.get('turnId') and message['text'] == item['text']
-                and message['time'] >= item['time']), None)
+                and stamp >= item['time']), None)
             if operation is not None:
                 matched.add(occurrence)
                 pending.pop(operation, None)
