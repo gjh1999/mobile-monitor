@@ -146,7 +146,7 @@ class WorkspaceSplitter(QSplitter):
         super().__init__(Qt.Orientation.Horizontal)
         self.path = root / '.local' / 'desktop-sidebar-width'
         self.setChildrenCollapsible(False)
-        self.setHandleWidth(10)
+        self.setHandleWidth(7)
         self.dirty = False
         self.timer = QTimer(self, interval=300, singleShot=True)
         self.timer.timeout.connect(self.flush)

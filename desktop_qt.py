@@ -1551,6 +1551,9 @@ class MainWindow(QMainWindow):
                     self._popup('吉光片羽暂未打开', '暂时无法读写本机笔记库。')
                     return
                 self.workspace_pages.addWidget(self.notebook)
+            width = self.workspace_splitter.sizes()[0]
+            if width:
+                self.notebook.list_panel.setFixedWidth(width)
             self.notebook.refresh_day()
             self.workspace_pages.setCurrentWidget(self.notebook)
             self.client_switch.select(section)
