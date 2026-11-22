@@ -16,6 +16,8 @@ HOOK_EVENT = "PermissionRequest"
 ALERTS = "codex-approval-alerts"
 MAX_AGE = 120
 FILE_NAME = re.compile(r"[0-9a-f]{32}\.json")
+COMMAND_PREFIX = "powershell.exe -NoProfile -NonInteractive -EncodedCommand "
+STATUS_MESSAGE = "澜汐审批提醒"
 
 
 def hook_home():
@@ -27,9 +29,9 @@ def _hook(command):
     return {
         "hooks": [{
             "type": "command",
-            "command": "powershell.exe -NoProfile -NonInteractive -EncodedCommand " + encoded,
+            "command": COMMAND_PREFIX + encoded,
             "timeout": 8,
-            "statusMessage": "澜汐审批提醒",
+            "statusMessage": STATUS_MESSAGE,
         }]
     }
 
@@ -37,14 +39,37 @@ def _hook(command):
 def hook_entry(root):
     bundle = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     source = (bundle / "scripts" / "codex-approval-alert.ps1").read_text(encoding="utf-8")
-    inbox = str(root / ".local" / ALERTS).replace("'", "''")
     # A command can run under Restricted without executing a .ps1 file.
-    return _hook(f"$inbox = '{inbox}'\n{source}")
+    return _hook(_inbox_header(root) + source)
+
+
+def _inbox_header(root):
+    inbox = str(root / ".local" / ALERTS).replace("'", "''")
+    return f"$inbox = '{inbox}'\n"
 
 
 def _legacy_hook(root):
     script = str(root / ".local" / "codex-approval-alert.ps1").replace("'", "''")
     return _hook("& '" + script + "'")
+
+
+def _owned_hook(row, root, legacy):
+    if row == legacy:
+        return True
+    hooks = row.get("hooks")
+    if set(row) != {"hooks"} or not isinstance(hooks, list) or len(hooks) != 1:
+        return False
+    entry = hooks[0]
+    if not isinstance(entry, dict) or entry.get("type") != "command" or entry.get("statusMessage") != STATUS_MESSAGE:
+        return False
+    command = entry.get("command")
+    if not isinstance(command, str) or not command.startswith(COMMAND_PREFIX):
+        return False
+    try:
+        source = base64.b64decode(command[len(COMMAND_PREFIX):], validate=True).decode("utf-16-le")
+    except ValueError:
+        return False
+    return source.startswith(_inbox_header(root) + "# Notify the local desktop and let Codex open its original approval prompt.")
 
 
 def user_hook_config(path):
@@ -59,11 +84,13 @@ def user_hook_config(path):
     return config, group, raw
 
 
-def installed(root, home):
+def hook_status(root, home):
     path = home / "hooks.json"
     entry = hook_entry(root)
     _, existing, _ = user_hook_config(path)
-    return entry in existing
+    legacy = _legacy_hook(root)
+    owned = [row for row in existing if _owned_hook(row, root, legacy)]
+    return 'current' if owned == [entry] else 'outdated' if owned else 'missing'
 
 
 def configure(root, home, enabled):
@@ -77,8 +104,10 @@ def configure(root, home, enabled):
     legacy = _legacy_hook(root)
     with closing(ServiceLock(home / "lanxi-approval-hook.lock")):
         config, existing, original = user_hook_config(path)
-        updated = [row for row in existing if row != legacy and (enabled or row != entry)]
-        if enabled and entry not in updated:
+        if enabled and [row for row in existing if _owned_hook(row, root, legacy)] == [entry]:
+            return
+        updated = [row for row in existing if not _owned_hook(row, root, legacy)]
+        if enabled:
             updated.append(entry)
         if updated == existing:
             return

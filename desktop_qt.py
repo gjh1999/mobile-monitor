@@ -29,7 +29,7 @@ import monitor
 from cloud_pairing import bundled_workspace
 from code_sync import trust_git_directory
 from codex_approval_alerts import (
-    configure as configure_approval_alerts, hook_home, installed as approval_alerts_installed, take_alerts,
+    configure as configure_approval_alerts, hook_home, hook_status, take_alerts,
 )
 from desktop_approvals import ApprovalQueueDialog, INACTIVE, approval_status
 from desktop_glass import ClientSwitch, FrostedPanel, OceanBackdrop, motion_enabled
@@ -813,7 +813,7 @@ class MainWindow(QMainWindow):
         self.task_items = {}
         self.collapsed_projects = {'codex': set(), 'claude': set()}
         self._pending_approvals = {}
-        self._shown_approvals = set()
+        self._shown_approvals = {}
         self._approval_feedback = {}
         self._approval_sending = {}
         self._approval_scope = 'local'
@@ -1238,6 +1238,10 @@ class MainWindow(QMainWindow):
         sync_menu.aboutToShow.connect(lambda: self.fill_sync_menu(sync_menu))
         menu.addAction('查看待审批请求', lambda: self.offer_approval(force=True))
         menu.addAction('VS Code 审批提醒…', self.configure_external_approval_alerts)
+        remote_completion = menu.addAction('接收其他电脑的完成提醒')
+        remote_completion.setCheckable(True)
+        menu.aboutToShow.connect(lambda: remote_completion.setChecked(monitor.remote_completion_since() is not None))
+        remote_completion.triggered.connect(self.set_remote_completion_notifications)
         menu.addAction('打开用户数据目录', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(monitor.ROOT))))
         menu.addAction('设置项目母目录…', lambda: self.choose_project_root())
         if getattr(sys, 'frozen', False):
@@ -2702,16 +2706,25 @@ class MainWindow(QMainWindow):
         self.show_window()
         try:
             home = hook_home()
-            enabled = approval_alerts_installed(monitor.ROOT, home)
-            question = ('停用澜汐的 Codex 审批提醒？' if enabled else
-                        '启用或更新本机 Codex 审批提醒？配置完成后请在 Codex 中审查并信任「澜汐审批提醒」。')
-            if QMessageBox.question(self, 'VS Code 审批提醒', question) != QMessageBox.StandardButton.Yes:
+            status = hook_status(monitor.ROOT, home)
+            dialog = QMessageBox(self)
+            dialog.setWindowTitle('VS Code 审批提醒')
+            dialog.setTextFormat(Qt.TextFormat.PlainText)
+            dialog.setText({'current': '本机提醒已配置。请在 Codex 中确认已信任「澜汐审批提醒」。',
+                            'outdated': '本机提醒配置需要更新。', 'missing': '本机尚未配置 VS Code 审批提醒。'}[status])
+            install = dialog.addButton('启用或更新', QMessageBox.ButtonRole.AcceptRole)
+            disable = dialog.addButton('停用', QMessageBox.ButtonRole.DestructiveRole) if status != 'missing' else None
+            dialog.addButton(QMessageBox.StandardButton.Cancel)
+            dialog.exec()
+            choice = dialog.clickedButton()
+            if choice is None or choice not in (install, disable):
                 return
-            configure_approval_alerts(monitor.ROOT, home, not enabled)
+            enabled = choice is install
+            configure_approval_alerts(monitor.ROOT, home, enabled)
         except (OSError, ValueError, RuntimeError) as error:
             self._popup('无法更新审批提醒', str(error))
             return
-        if enabled:
+        if not enabled:
             self._popup('审批提醒已停用', '重启 VS Code 后应用配置。')
         else:
             self._popup('审批提醒已配置',
@@ -2719,10 +2732,17 @@ class MainWindow(QMainWindow):
                         '\n也可以在同一账号的 Codex 终端使用 /hooks。'
                         '\n澜汐完全退出后，Windows 会显示提醒。审批在发起请求的 Codex 窗口确认。')
 
+    def set_remote_completion_notifications(self, enabled):
+        try:
+            monitor.set_remote_completion_enabled(enabled)
+        except OSError as error:
+            self._popup('无法保存提醒设置', str(error))
+
     def refresh_external_approval_alerts(self):
         if self._quitting:
             return
-        threads = {request['details'].get('threadId') for request in self._pending_approvals.values()}
+        threads = {request['details'].get('threadId') for request in self._pending_approvals.values()
+                   if request['client'] == 'codex' and not request['remote']}
         alerts = [row for row in take_alerts(monitor.ROOT) if row['thread'] not in threads]
         if not alerts:
             return
@@ -2742,8 +2762,10 @@ class MainWindow(QMainWindow):
         snapshot = monitor.approval_snapshot()
         self._approval_scope = snapshot['workspace']
         self._pending_approvals = {item['token']: item for item in snapshot['pending']}
-        self._shown_approvals.intersection_update(self._pending_approvals)
         now = time.time()
+        self._shown_approvals = {token: max(expires, self._pending_approvals.get(token, {}).get('expires', 0))
+                                 for token, expires in self._shown_approvals.items()
+                                 if expires + 60 > now or token in self._pending_approvals}
         receipts = []
         for token, (item, decision, recorded) in list(self._approval_feedback.items()):
             if decision in ('queued', 'unknown_delivery'):
@@ -2777,7 +2799,7 @@ class MainWindow(QMainWindow):
     def offer_approval(self, force=False):
         if self._quitting:
             return
-        new_requests = self._pending_approvals.keys() - self._shown_approvals
+        new_requests = self._pending_approvals.keys() - self._shown_approvals.keys()
         if not force and not new_requests:
             return
         if not (self._pending_approvals or self._approval_feedback or self._approval_sending):
@@ -2789,7 +2811,7 @@ class MainWindow(QMainWindow):
         self.approval_dialog.showNormal()
         self.approval_dialog.raise_()
         self.approval_dialog.activateWindow()
-        self._shown_approvals.update(self._pending_approvals)
+        self._shown_approvals.update((token, item['expires']) for token, item in self._pending_approvals.items())
 
     def approval_task_title(self, token, request):
         params = request['details']

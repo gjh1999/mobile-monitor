@@ -6,10 +6,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codex_approval_alerts import _legacy_hook, configure, hook_entry, installed, take_alerts
+from codex_approval_alerts import _hook, _inbox_header, _legacy_hook, configure, hook_entry, hook_status, take_alerts
 
 
 class CodexApprovalAlertsTests(unittest.TestCase):
+    def test_update_replaces_stale_embedded_hooks_without_touching_other_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "codex"
+            home.mkdir()
+            path = home / "hooks.json"
+            previous = _hook(_inbox_header(root) +
+                             "# Notify the local desktop and let Codex open its original approval prompt.\nexit 0")
+            current = hook_entry(root)
+            other = hook_entry(root / "other data")
+            path.write_text(json.dumps({"hooks": {"PermissionRequest": [previous, other, current]}}), encoding="utf-8")
+            self.assertEqual(hook_status(root, home), 'outdated')
+            configure(root, home, True)
+            self.assertEqual(json.loads(path.read_bytes())["hooks"]["PermissionRequest"], [other, current])
+            self.assertEqual(hook_status(root, home), 'current')
+            configure(root, home, False)
+            self.assertEqual(json.loads(path.read_bytes())["hooks"]["PermissionRequest"], [other])
+
     def test_toggle_preserves_other_hooks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -23,12 +41,12 @@ class CodexApprovalAlertsTests(unittest.TestCase):
             path.write_text(json.dumps(existing), encoding="utf-8")
             configure(root, home, True)
             configure(root, home, True)
-            self.assertTrue(installed(root, home))
+            self.assertEqual(hook_status(root, home), 'current')
             actual = json.loads(path.read_bytes())
             self.assertEqual(actual["hooks"]["PermissionRequest"], existing["hooks"]["PermissionRequest"]
                              + [hook_entry(root)])
             configure(root, home, False)
-            self.assertFalse(installed(root, home))
+            self.assertEqual(hook_status(root, home), 'missing')
             self.assertEqual(json.loads(path.read_bytes()), existing)
             path.write_bytes(b"broken")
             with self.assertRaises(ValueError):
@@ -43,7 +61,7 @@ class CodexApprovalAlertsTests(unittest.TestCase):
             path = home / "hooks.json"
             other = _legacy_hook(root / "other data")
             path.write_text(json.dumps({"hooks": {"PermissionRequest": [_legacy_hook(root), other]}}), encoding="utf-8")
-            self.assertFalse(installed(root, home))
+            self.assertEqual(hook_status(root, home), 'outdated')
             configure(root, home, True)
             self.assertEqual(json.loads(path.read_bytes())["hooks"]["PermissionRequest"], [other, hook_entry(root)])
 

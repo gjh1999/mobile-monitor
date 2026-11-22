@@ -34,6 +34,7 @@ FILES = (
     ".local/ide-close.sqlite3",
     ".local/personal-sync",
     ".local/desktop-wallpapers",
+    ".local/remote-completion-notifications",
 )
 
 

@@ -1,8 +1,9 @@
 ﻿import copy, queue, tempfile, threading, unittest
 from io import StringIO
+from time import time
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import monitor
 from automation import Approvals, Scheduler
 from rpc_client import RPC, RPCError
@@ -21,6 +22,34 @@ class FakeRPC:
 
 
 class Tests(unittest.TestCase):
+ def test_completion_notifications_are_local_unless_enabled_on_this_device(self):
+  thread='11111111-2222-4333-8444-555555555555'
+  for enabled in (False,True):
+   with self.subTest(enabled=enabled), tempfile.TemporaryDirectory() as directory:
+    local=monitor.completion(thread,'local-turn',time(),'local')
+    remote=monitor.completion(thread,'remote-turn',time()+1,'remote')
+    previous=monitor.completion(thread,'old-remote-turn',time()-10,'old')
+    native=Mock()
+    records=Mock()
+    records.sync.return_value=[{**item,'deviceName':'peer'} for item in (remote,previous)]
+    stop=threading.Event()
+    stop.wait=lambda _timeout:stop.set()
+    client=SimpleNamespace(url='https://fixture',device='this',token='fixture')
+    with patch.object(monitor,'ROOT',Path(directory)), patch.object(monitor,'RolloutWatch',return_value=SimpleNamespace(scan=lambda _: [local])), \
+         patch.object(monitor,'config',return_value={}), patch.object(monitor,'device_client',return_value=client), \
+         patch.object(monitor,'RemoteRecords'), patch.object(monitor,'WindowsNotifications',return_value=native), \
+         patch.object(monitor,'workspace_codex',records), patch.object(monitor,'codex_completions',queue.SimpleQueue()), \
+         patch.object(monitor,'update'), patch.dict('os.environ',CODEX_HOME=directory):
+     self.assertIsNone(monitor.remote_completion_since())
+     monitor.set_remote_completion_enabled(enabled)
+     self.assertEqual(monitor.remote_completion_since() is not None,enabled)
+     monitor.watch_codex(stop)
+     monitor.set_remote_completion_enabled(False)
+     self.assertIsNone(monitor.remote_completion_since())
+    keys=[visit.args[0].split(':')[-1] for visit in native.notify.call_args_list]
+    self.assertEqual(keys,['local-turn','remote-turn'] if enabled else ['local-turn'])
+    records.sync.assert_called_once()
+
  def test_quota_rejection_preserves_connection(self):
   with patch.object(monitor,'state',copy.deepcopy(monitor.state)):
    status=monitor.CodexStatus(threading.Event())

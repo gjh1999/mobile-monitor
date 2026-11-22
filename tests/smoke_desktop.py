@@ -787,6 +787,16 @@ def check_approval_queue(window, output):
                 window.refresh_approvals()
                 dialog = window.approval_dialog
                 assert dialog is not None and dialog.isVisible() and len(dialog.items) == 3
+                dialog.reject()
+                source.remote.clear()
+                window.refresh_approvals()
+                source.sync(requester)
+                window.refresh_approvals()
+                assert window.approval_dialog is None, 'Reappearing remote requests must stay available without a repeat popup'
+                assert window.stat_pending.text() == '3'
+                window.offer_approval(force=True)
+                dialog = window.approval_dialog
+                assert dialog is not None and dialog.isVisible() and len(dialog.items) == 3
                 assert isinstance(dialog.queue_panel, FrostedPanel) and isinstance(dialog.detail_panel, FrostedPanel)
                 assert dialog.checked_tokens() == [] and not dialog.approve_selected.isEnabled()
                 assert '家庭工作站' in dialog.meta.text() and 'D:/Projects/Vision' in dialog.meta.text()

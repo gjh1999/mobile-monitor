@@ -80,6 +80,21 @@ def set_tray_mode(hidden):
 def tray_release_status():
  return tray_release.status()
 
+
+def remote_completion_since():
+ try:return (ROOT/'.local'/'remote-completion-notifications').stat().st_mtime
+ except OSError:return None
+
+
+def set_remote_completion_enabled(enabled):
+ path=ROOT/'.local'/'remote-completion-notifications'
+ if enabled:
+  path.parent.mkdir(parents=True,exist_ok=True)
+  path.touch()
+ else:
+  path.unlink(missing_ok=True)
+
+
 def enable_personal_sync(settings, stop, workers):
  global personal_sync
  from personal_sync import PersonalSync
@@ -458,9 +473,11 @@ def watch_codex(stop):
    update(codexApprovalWatch='shared' if daemon and not daemon.closed else 'own_connection')
    try:
     if store:
-     for row in workspace_codex.sync(store):
+     rows=workspace_codex.sync(store)
+     enabled_since=remote_completion_since()
+     for row in rows if enabled_since is not None else ():
       stamp=row.get('time')
-      if not recent(stamp,now,RETENTION) or stamp<started:continue
+      if not recent(stamp,now,RETENTION) or stamp<max(started,enabled_since):continue
       name=row.get('title')
       item=completion(row.get('threadId'),row.get('turnId'),stamp,name if isinstance(name,str) else '')
       if item:alert({**item,'deviceName':row['deviceName']})
