@@ -380,6 +380,9 @@ def check_fast_send(window, codex, claude, data):
                 assert elapsed <= 100, (client, elapsed)
                 assert text in window.conversation.toPlainText() and '待发送' in window.conversation.toPlainText()
                 assert not composer.toPlainText() and composer.hasFocus()
+                composer.setPlainText(text)
+                QTest.keyClick(composer, Qt.Key.Key_Enter)
+                assert window.conversation.toPlainText().count(text) == 2
                 composer.setPlainText('此时仍可输入')
                 window.switch_client('claude' if client == 'codex' else 'codex')
                 assert text not in window.conversation.toPlainText()
@@ -388,20 +391,28 @@ def check_fast_send(window, codex, claude, data):
                 QTest.qWait(5000)
                 assert len(controller.calls) == before and '待发送' in window.conversation.toPlainText()
                 gate.set()
-                assert wait_until(lambda: len(controller.calls) == before + 1)
-            operation = controller.calls[-1][3]
+                assert wait_until(lambda: len(controller.calls) == before + 2)
+            operation, second = (row[3] for row in controller.calls[-2:])
             window.refresh()
             QTest.qWait(5000)
             assert '待发送' in window.conversation.toPlainText()
             op = next(row for row in controller.data['operations'] if row['id'] == operation)
             op.update(status='succeeded', message='已送达', messageTurnId='fixture-turn')
+            duplicate = next(row for row in controller.data['operations'] if row['id'] == second)
+            duplicate.update(status='succeeded', message='已送达', messageTurnId='fixture-turn')
             window.refresh()
             assert '已送达' in window.conversation.toPlainText()
             data['messages'] = [{'role': 'user', 'text': text, 'id': operation if client == 'claude' else 'native-item',
                                  'turnId': 'fixture-turn', 'time': time.time()}]
             assert wait_until(lambda: (window.refresh_conversation() or True)
                               and operation not in window._local_messages[(client, thread)])
-            assert window.conversation.toPlainText().count(text) == 1
+            assert second in window._local_messages[(client, thread)]
+            assert window.conversation.toPlainText().count(text) == 2
+            data['messages'].append({'role': 'user', 'text': text, 'id': second if client == 'claude' else 'native-item-2',
+                                     'turnId': 'fixture-turn', 'time': time.time()})
+            assert wait_until(lambda: (window.refresh_conversation() or True)
+                              and second not in window._local_messages[(client, thread)])
+            assert window.conversation.toPlainText().count(text) == 2
             print(f'{client} optimistic send rendered in {elapsed:.1f} ms with admission and delivery held for five seconds each.')
         finally:
             gate.set()
