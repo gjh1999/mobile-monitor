@@ -170,7 +170,7 @@ def conversation_for(thread_id,client='codex',*,local_history=True):
   return claude_rpc.conversation(thread_id) if claude_rpc else {'messages':[],'events':[]}
  path=ROOT/'replies.sqlite3'
  if local_history:
-  return read_codex_conversation(path,thread_id,activity=codex_activity.snapshot(thread_id))
+  return read_codex_conversation(path,thread_id,activity=codex_activity.snapshot(thread_id),include_identity=True)
  return read_conversation(path,thread_id)
 def snapshot():
  with state_lock:result=json.loads(json.dumps(state))

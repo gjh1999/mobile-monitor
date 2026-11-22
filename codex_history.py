@@ -251,7 +251,7 @@ def history_for(home):
     return CodexHistory(home)
 
 
-def merge_messages(completed, legacy, recorded, removed, activity=()):
+def merge_messages(completed, legacy, recorded, removed, activity=(), *, include_identity=False):
     exact = OrderedDict(((message['turnId'], message['id']), message) for message in completed)
     modern = {(turn, message['role']) for (turn, _), message in exact.items()
               if turn and message['role'] != 'user'}
@@ -313,10 +313,12 @@ def merge_messages(completed, legacy, recorded, removed, activity=()):
         if message['role'] == 'process':
             fields += ('command', 'status', 'exitCode', 'durationMs')
         result.append({key: message[key] for key in fields})
+        if include_identity:
+            result[-1].update(id=message.get('id'), turnId=message.get('turnId'))
     return result
 
 
-def read_codex_conversation(path, tid, *, activity=None):
+def read_codex_conversation(path, tid, *, activity=None, include_identity=False):
     home = Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex')
     completed, legacy, removed = history_for(home).read(tid, include_commands=activity is not None)
     try:
@@ -325,5 +327,6 @@ def read_codex_conversation(path, tid, *, activity=None):
         if not completed and not legacy and not activity:
             raise
         journal = {'messages': [], 'events': []}
-    return {'messages': merge_messages(completed, legacy, journal['messages'], removed, activity or ()),
+    return {'messages': merge_messages(completed, legacy, journal['messages'], removed, activity or (),
+                                        include_identity=include_identity),
             'events': journal['events']}

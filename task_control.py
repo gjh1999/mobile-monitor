@@ -33,6 +33,7 @@ class TaskControl:
         self.db.execute('CREATE TABLE IF NOT EXISTS task_names(id TEXT PRIMARY KEY, name TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS auto_progress(thread TEXT PRIMARY KEY, due REAL NOT NULL, revision TEXT, state TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY, thread TEXT, action TEXT, text TEXT, status TEXT, result TEXT, stamp REAL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS operation_message_turn(id TEXT PRIMARY KEY, turn TEXT NOT NULL)')
         self.db.execute("UPDATE operations SET status='unknown',result='服务曾中断，请核查操作是否已执行；不会自动重发。' WHERE status='running'")
         self.db.execute("UPDATE operations SET status='cancelled',result='原 Codex 连接已结束，请重新选择设置。' "
                         "WHERE status='queued' AND action='codex_settings'")
@@ -484,9 +485,13 @@ class TaskControl:
         params['_sendGuard'] = lambda: self._send_allowed(tid, operation, action)
         if active:
             params['expectedTurnId'] = active
-            rpc.call('turn/steer', params)
+            accepted = rpc.call('turn/steer', params)
         else:
-            rpc.call('turn/start', params)
+            accepted = rpc.call('turn/start', params)
+        if action == 'message':
+            turn = active or (accepted or {}).get('turn', {}).get('id')
+            if turn:
+                self._execute('INSERT OR REPLACE INTO operation_message_turn VALUES(?,?)', (operation, turn))
         if action == 'resume':
             with self.lock:
                 if self._send_allowed(tid, operation, action):
@@ -697,8 +702,10 @@ class TaskControl:
                 if tid in progress:
                     item['autoProgress'] = progress[tid]
                 tasks.append(item)
-            operations = [dict(id=r[0], threadId=r[1], action=r[2], status=r[3], message=r[4], stamp=r[5])
-                          for r in self.db.execute('SELECT id,thread,action,status,result,stamp FROM operations ORDER BY stamp DESC,rowid DESC LIMIT 100')]
+            operations = [dict(id=r[0], threadId=r[1], action=r[2], status=r[3], message=r[4], stamp=r[5], messageTurnId=r[6])
+                          for r in self.db.execute('SELECT o.id,o.thread,o.action,o.status,o.result,o.stamp,m.turn '
+                                                   'FROM operations o LEFT JOIN operation_message_turn m ON m.id=o.id '
+                                                   'ORDER BY o.stamp DESC,o.rowid DESC LIMIT 100')]
             return dict(tasks=tasks, operations=operations, names=names, ready=True)
 
     def automatic_allowed(self, rpc, tid):

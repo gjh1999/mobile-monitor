@@ -533,7 +533,7 @@ class ClaudeCodeRPC:
             path = self.journal.db.execute('PRAGMA database_list').fetchone()[2]
         if not path:
             return data
-        journal = read_conversation(Path(path), tid, include_ids=True)
+        journal = read_conversation(Path(path), tid, include_ids=True, include_turns=True)
         messages = list(data['messages'])
         seen = {m['id'] for m in messages if m.get('id')}
         for message in journal['messages']:
