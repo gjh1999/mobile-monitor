@@ -74,6 +74,9 @@ class TrayRelease:
                 wake.clear()
                 return
 
+    def signal(self, client):
+        self.wake[client].set()
+
 
 class CodexTrayRelease:
     def __init__(self, stop=None, continuing=lambda: True, pending_approval=lambda thread: False):
