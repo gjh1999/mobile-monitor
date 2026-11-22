@@ -2,6 +2,12 @@
 
 > 历史验收日志。各条结论只描述记录当时的版本和环境；旧文件名与路径的迁移见 [整理记录](REORGANIZATION_2026-11-14.md)，当前操作见 [运行与维护](../RUNBOOK.md)。
 
+## 2026-11-22 R50 审批弹窗与跨机提醒复验
+
+- Windows 11、Python 3.14.7、PySide6 6.12.0，候选提交 `365520d`。`.venv\Scripts\python.exe -B -m unittest tests.test_codex_approval_alerts tests.test_codex_watch tests.test_monitor tests.test_desktop_storage -q` 通过 21 项，耗时 1.268 秒。覆盖同一数据目录只保留当前 Hook、第三方 Hook 保留、跨机完成提醒本机设置及旧事件跳过。
+- `.venv\Scripts\python.exe -B tests/smoke_desktop.py --output build-exe/verification/approval-reminders-r50/qt-final` 通过。模拟两套设备身份，接收端关闭审批窗后丢失并恢复同一待审批列表，自动弹窗维持关闭，可以在托盘手动打开，新增本机请求自动显示。用例保留跨机提交及实际回执验证。
+- 使用已安装 VS Code 扩展随附的真实 Codex 与隔离用户目录，连接回环模型夹具。生成一次原生审批请求，在澜汐窗口打开、托盘运行、完全退出三种状态分别看到一次提醒，最后在原生连接拒绝该夹具请求。运行 `build-exe/verification/approval-reminders-r50/native-desktop.py window`、`native-desktop.py tray` 及 `build-exe/verification/portable-r45/check_standalone_approval.py`。各模式日志位于 `build-exe/verification/approval-reminders-r50/`。另一台实体电脑的现象待核对。 [验收工单](../DELIVERY_STATUS.md#approval-reminders)
+
 ## 2026-11-22 R49 本地消息响应与原生标题验收
 
 - 环境为 Windows 11 26100、Python 3.14.7、PySide6 6.12.0。使用隔离会话和合成指令验证 `fa3616f` 的窗口响应。在 Codex 和 Claude 测试中，后台入队和后续投递各阻塞 5 秒，测量从 Qt Enter 事件到待发送气泡绘制的时间，100 毫秒内通过。最终复跑测得 Codex 6.3 毫秒、Claude 7.9 毫秒，期间覆盖继续输入、切换会话和连续相同文本逐条去重。测量止于本机反馈，没有测量模型响应时间。

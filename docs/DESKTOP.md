@@ -69,9 +69,11 @@ R42 关闭主窗口缩到托盘时，澜汐自动交还本机持有的任务控�
 - 跨机提交后，状态先显示「等待回执」，来源设备处理后逐项显示结果。送达结果不确定时显示「结果未确认」。独立 Codex App Server 的审批由原客户端处理。Codex 完成提醒由后台读取已完成轮次后发送。
 - 从 R36 起，共享连接在本机或跨机同意前都会核对项目控制权。旧任务已交还或控制权已转移时，审批返回「控制权已变更」。 [工单与复测状态](DELIVERY_STATUS.md#r35-review)
 
-R41 支持 Windows 上独立 Codex 的审批提醒。在澜汐托盘选择「VS Code 审批提醒…」并启用。重启 VS Code，在 Codex 输入框旁的 **Review hooks** 审查并信任「澜汐审批提醒」。也可在同一 Windows 账号的终端打开 Codex，用 `/hooks` 完成审查。使用自定义 `CODEX_HOME` 时，澜汐、终端和扩展需使用同一配置目录。澜汐运行时，收到支持的审批事件会置顶显示项目和工具名。实际确认在发起请求的 Codex 窗口操作。再次打开同一菜单可停用此提醒。 [Codex Hook 官方说明](https://learn.chatgpt.com/docs/hooks#permissionrequest)
+在澜汐托盘选择「VS Code 审批提醒…」查看本机配置状态，点「启用或更新」配置提醒。重启 VS Code，在 Codex 输入框旁的 **Review hooks** 审查并信任「澜汐审批提醒」。也可在同一 Windows 账号的终端打开 Codex，用 `/hooks` 完成审查。使用自定义 `CODEX_HOME` 时，澜汐、终端和扩展需使用同一配置目录。澜汐运行时，收到支持的审批事件会置顶显示项目和工具名。实际确认在发起请求的 Codex 窗口操作。同一菜单提供「停用」。 [Codex Hook 官方说明](https://learn.chatgpt.com/docs/hooks#permissionrequest)
 
-R45 的 Hook 支持澜汐完全退出时由 Windows 弹出「Codex 等待审批」。VS Code 可以继续持有会话。升级后在托盘选择「VS Code 审批提醒…」更新 Hook，重启 VS Code 并重新信任。实际审批在发起请求的 VS Code 窗口处理。
+澜汐完全退出时，由 Windows 弹出「Codex 等待审批」。同一条跨机审批在短暂断线重连后仍可从托盘「查看待审批请求」打开，已自动显示过的请求不会再次弹出。
+
+R50 完成提醒默认在运行会话的电脑显示。想在当前电脑接收配对电脑上新完成的轮次时，在托盘勾选「接收其他电脑的完成提醒」。这个选项保存在当前电脑。
 
 已完成 R35 包内界面的隔离 Qt 验证和双设备模拟联调。R36 包内的最终界面改动已通过独立复测，实体双机及真实客户端审批仍待现场验证。 [R35-03](DELIVERY_STATUS.md#r35-03) · [后端接口及支持范围](ARCHITECTURE.md#全局-codex-监控与审批队列)
 
