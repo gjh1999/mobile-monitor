@@ -6,7 +6,8 @@ from unittest.mock import patch
 from project_intro import ProjectIntroStore
 
 try:
-    from PySide6.QtCore import Qt, QUrl
+    from PySide6.QtCore import QTimer, Qt, QUrl
+    from PySide6.QtGui import QInputMethodEvent, QTextCursor
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication
 
@@ -37,14 +38,14 @@ class ProjectIntroPageTests(unittest.TestCase):
 
     def test_keyboard_save_restores_preview_and_reopens_multiline_value(self):
         field = self.page.purpose
-        self.assertIs(field.currentWidget(), field.preview)
+        self.assertIs(field.currentWidget(), field.reading)
         self.assertEqual(field.preview.text(), '双击添加')
         self.edit(field, '第一行')
-        field.editor.moveCursor(field.editor.textCursor().MoveOperation.End)
+        field.editor.moveCursor(QTextCursor.MoveOperation.End)
         QTest.keyClick(field.editor, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier)
         field.editor.insertPlainText('第二行')
         QTest.keyClick(field.editor, Qt.Key.Key_Return)
-        self.assertIs(field.currentWidget(), field.preview)
+        self.assertIs(field.currentWidget(), field.reading)
         self.assertFalse(field.editor.isVisible())
         self.assertEqual(field.preview.text(), '第一行\n第二行')
         reopened = ProjectIntroPage(self.store)
@@ -82,3 +83,35 @@ class ProjectIntroPageTests(unittest.TestCase):
         self.page.show_project('second', '第二项目', str(self.root))
         self.assertTrue(self.page.repository.isHidden())
         self.assertTrue(self.page.branch.isHidden())
+
+    def test_exit_can_cancel_or_save_drafts_for_multiple_projects(self):
+        self.edit(self.page.purpose, '第一项目草稿')
+        self.page.show_project('second', '第二项目', str(self.root))
+        self.edit(self.page.progress, '第二项目草稿')
+
+        def choose(text):
+            box = QApplication.activeModalWidget()
+            button = next(item for item in box.buttons() if item.text() == text)
+            button.click()
+
+        QTimer.singleShot(0, lambda: choose('取消'))
+        self.assertFalse(self.page.confirm_exit())
+        self.assertEqual(self.store.load('first'), ('', ''))
+        QTimer.singleShot(0, lambda: choose('保存并退出'))
+        self.assertTrue(self.page.confirm_exit())
+        self.assertEqual(self.store.load('first'), ('第一项目草稿', ''))
+        self.assertEqual(self.store.load('second'), ('', '第二项目草稿'))
+
+    def test_ime_preedit_does_not_save_and_long_preview_can_scroll(self):
+        field = self.page.purpose
+        self.edit(field, '用途')
+        QApplication.sendEvent(field.editor, QInputMethodEvent('候选字', []))
+        QTest.keyClick(field.editor, Qt.Key.Key_Return)
+        self.assertIs(field.currentWidget(), field.editor)
+        self.assertEqual(self.store.load('first'), ('', ''))
+        QApplication.sendEvent(field.editor, QInputMethodEvent())
+        field.editor.setPlainText('\n'.join(f'进度第 {index} 行' for index in range(100)))
+        QTest.keyClick(field.editor, Qt.Key.Key_Return)
+        self.app.processEvents()
+        self.assertTrue(field.preview.isVisible())
+        self.assertGreater(field.reading.verticalScrollBar().maximum(), 0)

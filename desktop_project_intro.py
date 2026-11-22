@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QPainter
 from PySide6.QtWidgets import (
-    QLabel, QMessageBox, QPushButton, QSplitter, QSplitterHandle,
+    QLabel, QMessageBox, QPushButton, QScrollArea, QSplitter, QSplitterHandle,
     QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -75,7 +75,12 @@ class ProjectIntroField(QStackedWidget):
         self.preview.setAccessibleName(title)
         self.preview.setAccessibleDescription('双击文字可编辑，键盘可按 F2。')
         self.preview.setToolTip('双击编辑')
-        self.addWidget(self.preview)
+        self.reading = QScrollArea()
+        self.reading.setStyleSheet('background: transparent; border: 0;')
+        self.reading.setWidgetResizable(True)
+        self.reading.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.reading.setWidget(self.preview)
+        self.addWidget(self.reading)
         self.editor = ProjectIntroEditor()
         self.editor.setObjectName('projectIntroEditor')
         self.editor.setAccessibleName(title)
@@ -91,7 +96,7 @@ class ProjectIntroField(QStackedWidget):
         self.preview.setEnabled(editable)
         with QSignalBlocker(self.editor):
             self.editor.setPlainText(value if draft is None else draft)
-        self.setCurrentWidget(self.preview if draft is None else self.editor)
+        self.setCurrentWidget(self.reading if draft is None else self.editor)
 
 
 class ProjectIntroPage(QWidget):
