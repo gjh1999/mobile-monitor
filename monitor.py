@@ -61,6 +61,18 @@ history_labels={}
 personal_sync=None
 codex_activity=CodexActivity()
 tray_release=TrayRelease()
+CODEX_POLL_SECONDS=3
+CODEX_STATUS_TIMEOUT=5
+
+class LocalTaskControl(TaskControl):
+ def __init__(self,path,client):
+  super().__init__(path)
+  self.client=client
+
+ def submit(self,thread,action,text='',request_id=None):
+  operation=super().submit(thread,action,text,request_id)
+  tray_release.signal(self.client)
+  return operation
 
 def set_tray_mode(hidden):
  tray_release.set(bool(hidden))
@@ -185,24 +197,82 @@ def clean_limits(x):
  def window(w):return {k:w.get(k) for k in ('usedPercent','windowDurationMins','resetsAt')} if isinstance(w,dict) else None
  def one(v):return {**{key:v.get(key) for key in ('spendControlReached','rateLimitReachedType','individualLimit')},'primary':window(v.get('primary')),'secondary':window(v.get('secondary'))}
  return {'ordinaryUsageAllowed':x.get('ordinaryUsageAllowed'),'default':one(x.get('rateLimits') or {}),'models':{k:one(v) for k,v in (x.get('rateLimitsByLimitId') or {}).items()}}
-def collect(rpc,cfg,scheduler):
- approvals.expire()
- # Read current backend quota before any scheduler decision. Reset times are only
- # wake-up hints; ordinaryUsageAllowed must explicitly confirm recovery.
- quota=None
- try:
-  quota=rpc.call('account/rateLimits/read',{})
-  update(quota=clean_limits(quota),quotaStatus='official_api')
- except Exception:update(quota=None,quotaStatus='unknown: endpoint unavailable')
- schedule_result=scheduler.tick(rpc,cfg.get('tasks',[]),quota=quota)
+def run_schedule(rpc,tasks,scheduler,quota):
+ schedule_result=scheduler.tick(rpc,tasks,quota=quota)
  update(quotaWaits=scheduler.quota_recovery.snapshot())
  if schedule_result:update(schedule=schedule_result,lastScheduleCheck=scheduler.last_check)
- try:
-  data=rpc.call('thread/list',{'limit':20})
-  names=((snapshot().get('controls') or {}).get('names') or {})
-  update(threads=[{'id':t['id'],'title':names.get(t['id']) or t.get('name') or t.get('title') or history_labels.get(t['id'],{}).get('title') or '未命名历史任务','source':history_labels.get(t['id'],{}).get('source'),'cwd':t.get('cwd') or history_labels.get(t['id'],{}).get('cwd'),'githubProject':github_id((t.get('gitInfo') or {}).get('originUrl')),'status':t.get('status',{'type':'unknown'}),'updatedAt':t.get('updatedAt')} for t in data.get('data',[])])
- except Exception:update(threads=[],threadStatus='unavailable')
- update(updated=int(time.time()),connection='disconnected' if rpc.closed else 'connected')
+
+
+class CodexStatus:
+ """Refresh read-only views without holding up the thread that executes manual writes."""
+ def __init__(self,stop):
+  self.stop=stop
+  self.condition=threading.Condition()
+  self.rpc=None
+  self.generation=0
+  self.quota_sample=None
+  self.worker=threading.Thread(target=self.run,daemon=True,name='codex-status')
+
+ def use_rpc(self,rpc):
+  with self.condition:
+   if self.rpc is not rpc:
+    self.rpc=rpc
+    self.generation+=1
+    self.quota_sample=None
+    update(quota=None,quotaStatus='unknown')
+    self.condition.notify()
+
+ def take_quota(self,rpc):
+  with self.condition:
+   if self.rpc is not rpc:
+    return None
+   sample,self.quota_sample=self.quota_sample,None
+   return sample
+
+ def run(self):
+  while not self.stop.is_set():
+   with self.condition:
+    rpc,generation=self.rpc,self.generation
+    if rpc is None or rpc.closed:
+     self.condition.wait(.25)
+     continue
+   self.refresh(rpc,generation)
+   with self.condition:
+    self.condition.wait_for(lambda: self.generation!=generation or self.stop.is_set(),CODEX_POLL_SECONDS)
+
+ def refresh(self,rpc,generation):
+  try:
+   quota=rpc.call('account/rateLimits/read',{},timeout=CODEX_STATUS_TIMEOUT)
+   summary={'quota':clean_limits(quota),'quotaStatus':'official_api'}
+  except (RPCError,OSError,queue.Empty,TypeError,AttributeError):
+   quota=None
+   summary={'quota':None,'quotaStatus':'unknown: endpoint unavailable'}
+  with self.condition:
+   if self.stop.is_set() or self.generation!=generation or rpc.closed:
+    return
+   self.quota_sample=(time.monotonic(),quota)
+   update(**summary)
+  tray_release.signal('codex')
+  try:
+   data=rpc.call('thread/list',{'limit':20},timeout=CODEX_STATUS_TIMEOUT)['data']
+   if not isinstance(data,list):raise ValueError('Invalid Codex thread list')
+   names=(controller.snapshot().get('names') or {}) if controller else {}
+   threads=[]
+   for item in data:
+    thread=item['id']
+    history=history_labels.get(thread,{})
+    threads.append({'id':thread,'title':names.get(thread) or item.get('name') or item.get('title') or history.get('title') or '未命名历史任务',
+                    'source':history.get('source'),'cwd':item.get('cwd') or history.get('cwd'),
+                    'githubProject':github_id((item.get('gitInfo') or {}).get('originUrl')),
+                    'status':item.get('status',{'type':'unknown'}),'updatedAt':item.get('updatedAt')})
+   summary={'threads':threads,'threadStatus':'current'}
+  except (RPCError,OSError,queue.Empty,ValueError,TypeError,AttributeError,KeyError,sqlite3.Error):
+   summary={'threadStatus':'unavailable'}
+  with self.condition:
+   if not self.stop.is_set() and self.generation==generation and not rpc.closed:
+    update(**summary)
+
+
 class Notifications:
  def __init__(self,path):
   self.db=sqlite3.connect(path)
@@ -223,16 +293,20 @@ def poll(stop):
  managed=ManagedTasks(str(ROOT/'managed.sqlite3'),workspace)
  rpc=None;channel=None;failures=0;drained=[]
  release_generation=None;handoff=None
- controller=TaskControl(ROOT/'task-control.sqlite3');controller.seed(config().get('autoAttachThreads',[]))
+ controller=LocalTaskControl(ROOT/'task-control.sqlite3','codex');controller.seed(config().get('autoAttachThreads',[]))
  controller.control_allowed=tray_release.control_allowed
  journal=ReplyLog(str(ROOT/'replies.sqlite3'),activity=codex_activity,reply_notifications=False)
  native=WindowsNotifications(str(ROOT/'windows-notifications.sqlite3'))
+ status=CodexStatus(stop)
+ status.worker.start()
+ next_control_refresh=0
  try:
   while not stop.is_set():
    try:
     cfg=config()
     generation=tray_release.begin('codex')
     if generation is not None:
+     status.use_rpc(None)
      result=('waiting',0,'本机任务暂未完成交还，后台将重试。')
      try:
       if generation != release_generation:
@@ -251,6 +325,7 @@ def poll(stop):
       if not previous.project_writes.tickets:drained.remove(previous)
      if not history_labels:history_labels=load_labels()
      if rpc is None or rpc.closed:
+      status.use_rpc(None)
       if rpc:
        codex_activity.disconnect()
        if getattr(rpc,'draining',False):
@@ -263,23 +338,34 @@ def poll(stop):
       rpc.personal_session=lambda tid: personal_sync.snapshot()['sessions'].get(tid) if personal_sync else None
       rpc.personal_flow=lambda: personal_sync
       rpc.control_allowed=tray_release.control_allowed
+      next_control_refresh=0
      writes=getattr(rpc,'project_writes',None)
      if writes:
       try:flush_closes(close_queue(ROOT),writes.client)
       except (OSError,sqlite3.Error):pass
       if rpc.reconcile_writes():continue
-     controller.tick(rpc)
+     now=time.monotonic()
+     refresh=now>=next_control_refresh
+     if refresh:next_control_refresh=now+CODEX_POLL_SECONDS
+     controller.tick(rpc,refresh=refresh)
      controls=controller.snapshot();update(controls=controls,attachments=controls['tasks'])
      if rpc.closed:
+      status.use_rpc(None)
       update(connection='disconnected',serviceStatus='正在重连 Codex')
       tray_release.wait('codex',stop,1)
       continue
-     managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[])) if tray_release.managed_allowed() else ([],[])
-     update(managedTasks=managed_status)
-     automatic_tasks=controller.automatic_tasks(
-      rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc),
-      explicit_only=not tray_release.managed_allowed())
-     collect(rpc,{**cfg,'tasks':automatic_tasks},scheduler)
+     status.use_rpc(rpc)
+     update(updated=int(time.time()),connection='connected',serviceStatus='')
+     sample=status.take_quota(rpc)
+     if sample is not None:
+      measured,quota=sample
+      managed_jobs,managed_status=managed.sync(rpc,cfg.get('managedTasks',[])) if tray_release.managed_allowed() else ([],[])
+      update(managedTasks=managed_status)
+      automatic_tasks=controller.automatic_tasks(
+       rpc,cfg.get('tasks',[])+managed_jobs+controller.scheduled_tasks(rpc),
+       explicit_only=not tray_release.managed_allowed())
+      # A delayed sample cannot establish that quota has recovered.
+      run_schedule(rpc,automatic_tasks,scheduler,quota if time.monotonic()-measured<=CODEX_STATUS_TIMEOUT else None)
     approvals.expire()
     policy=ScopedPolicy(workspace,cfg.get('autoApprovalRules',[]))
     for token,value in list(approvals.items.items()):
@@ -306,9 +392,11 @@ def poll(stop):
     native.notify('failure:'+str(int(time.time()//3600)),'Codex monitor retrying','Connection unavailable; no replacement research thread created.')
    tray_release.wait('codex',stop,3 if not tray_release.control_allowed() else min(300,3*2**min(failures,6)))
  finally:
+  status.use_rpc(None)
   if rpc:
    if getattr(rpc,'project_writes',None) and not rpc.closed:rpc.reconcile_writes(shutdown=True)
    rpc.close()
+  status.worker.join()
   codex_activity.disconnect()
   if controller:controller.db.close()
   scheduler.db.close();notifications.db.close();managed.db.close()
@@ -389,7 +477,7 @@ def poll_claude(stop):
  """An independent worker keeps Codex outages from blocking Claude monitoring."""
  global claude_controller,claude_rpc,claude_journal
  from claude_rpc import ClaudeCodeRPC
- claude_controller=TaskControl(ROOT/'claude-task-control.sqlite3')
+ claude_controller=LocalTaskControl(ROOT/'claude-task-control.sqlite3','claude')
  claude_controller.seed(config().get('claudeAutoAttachThreads',[]),managed=False)
  claude_controller.control_allowed=tray_release.control_allowed
  release_generation=None
