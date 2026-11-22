@@ -133,17 +133,20 @@ class PersonalSync:
             }
 
     def _prepare_retirements(self, store, index, errors, stop):
-        with self.lock:
-            self.retirement_supported = False
+        def unavailable():
+            with self.lock:
+                self.retirement_supported = False
+                return dict(self.retirements), {}
+
         if not isinstance(store, RemoteRecords) or stop.is_set():
-            return {}, {}
+            return unavailable()
         try:
             supported = store.retirement_supported()
         except (OSError, ValueError):
             errors["会话摘要"] = "暂时无法核对服务器会话整理能力"
-            return {}, {}
+            return unavailable()
         if not supported:
-            return {}, {}
+            return unavailable()
         revisions = {key.removeprefix(RETIREMENT_PREFIX): rev for key, rev in index.items()
                      if key.startswith(RETIREMENT_PREFIX) and rev != EMPTY}
         canonical = re.compile(r"[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}")
@@ -159,6 +162,8 @@ class PersonalSync:
                     rows[tid]["acknowledged"].append(owner)
 
         pending = {}
+        if rows:
+            self._phase("正在核对跨机会话摘要和删除回执")
         for tid, row in rows.items():
             if stop.is_set():
                 break
@@ -193,7 +198,7 @@ class PersonalSync:
                 delete(self.root, self.home, tid)
                 row["status"] = "本机正在清理同步副本"
                 pending[tid] = directories
-            except (OSError, RPCError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
+            except (OSError, RPCError, ValueError, TypeError, KeyError, sqlite3.Error, subprocess.SubprocessError) as error:
                 row["status"] = str(error) if isinstance(error, ValueError) else "本机整理暂未完成，后台将重试"
                 errors.setdefault("会话摘要", row["status"])
         with self.lock:

@@ -316,8 +316,14 @@ def purge_session_copies(mirror, home, projects, tid, *, part_directories=()):
     suffix = f"-{tid}.jsonl"
     part_keys = set()
     for project, (root, subdir) in projects.items():
-        if not root.is_dir():
+        try:
+            info = root.lstat()
+        except FileNotFoundError:
             continue
+        if (not stat.S_ISDIR(info.st_mode) or root.is_symlink()
+                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                or root.resolve() != root):
+            raise ValueError("项目记忆根目录无法安全核对，等待清理")
         root = safe_path(root, subdir)
         folder = safe_path(root, ".lanxi/sessions")
         for entry in folder.glob(f"rollout-*{suffix}"):
@@ -350,8 +356,6 @@ def purge_session_copies(mirror, home, projects, tid, *, part_directories=()):
     memory_backups = safe_path(mirror.backups.parent, "memory-backups")
     backup_roots = ((memory_backups, r"[a-f0-9]{64}"), (native_backups, r"[a-f0-9]{64}\.jsonl"))
     for folder, pattern in backup_roots:
-        if folder.is_symlink():
-            raise ValueError("本机会话备份路径包含链接")
         for path in folder.iterdir() if folder.is_dir() else ():
             if not re.fullmatch(pattern, path.name):
                 continue
