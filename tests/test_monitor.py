@@ -76,6 +76,8 @@ class Tests(unittest.TestCase):
        patch.object(monitor,'_workspace',Path(directory)), \
        patch.object(monitor,'config',return_value={'autoAttachThreads':[thread]}), \
        patch.object(monitor,'RPC',return_value=SlowStatus()), \
+       patch.object(monitor,'ReplyLog'), \
+       patch.object(monitor,'WindowsNotifications'), \
        patch.object(monitor,'tray_release',TrayRelease()), \
        patch.object(monitor,'controller',None), \
        patch.object(monitor,'history_labels',{'test':{}}), \
