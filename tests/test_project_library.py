@@ -20,6 +20,7 @@ class ProjectLibraryTests(unittest.TestCase):
         git = project / ".git"
         git.mkdir(parents=True)
         (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        (git / 'config').write_text('[remote "origin"]\n\turl = git@github.com:Example/Paint.git\n', encoding='utf-8')
         memory = project / "notes" / "Codex"
         memory.mkdir(parents=True)
         (memory / "decision.md").touch()
@@ -41,6 +42,7 @@ class ProjectLibraryTests(unittest.TestCase):
         rows = {row["id"]: row for row in library.snapshot()}
         self.assertEqual(rows[thread]["cwd"], str(project))
         self.assertEqual(rows[ENTRY_PREFIX + str(project)]["branch"], "main")
+        self.assertEqual(rows[ENTRY_PREFIX + str(project)]['githubProject'], 'example/paint')
         self.assertEqual(rows[ENTRY_PREFIX + str(project)]["notes"], ["decision.md"])
         new = parent / "team" / "new python project"
         new.mkdir(parents=True)

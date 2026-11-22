@@ -282,6 +282,8 @@ def delete_local_session(root, home, tid):
             connection.execute('PRAGMA secure_delete=ON')
             with connection:
                 tables = {row[0] for row in connection.execute('SELECT name FROM sqlite_master WHERE type="table"')}
+                if name == 'task-control.sqlite3' and {'operation_message_turn', 'operations'} <= tables:
+                    connection.execute('DELETE FROM operation_message_turn WHERE id IN (SELECT id FROM operations WHERE thread=?)', (tid,))
                 for table in rows:
                     if table in tables:
                         column = 'id' if table in ('targets', 'task_names') else 'thread'

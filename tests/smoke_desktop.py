@@ -375,6 +375,7 @@ def check_fast_send(window, codex, claude, data):
                 QApplication.sendEvent(composer, QInputMethodEvent('', []))
                 started = time.perf_counter()
                 QTest.keyClick(composer, Qt.Key.Key_Return)
+                window.conversation.viewport().repaint()
                 elapsed = (time.perf_counter() - started) * 1000
                 assert elapsed <= 100, (client, elapsed)
                 assert text in window.conversation.toPlainText() and '待发送' in window.conversation.toPlainText()
