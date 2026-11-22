@@ -28,8 +28,16 @@ function Read-ApprovalDecision($request) {
             Text=([string]$request.tool_name + " · " + $folder + "`n是否允许这一次操作？")
         }
         $layout.Controls.Add($heading,0,0)
+        $extra = [ordered]@{}
+        foreach ($property in $request.tool_input.PSObject.Properties) {
+            if ($property.Name -ne 'command') { $extra[$property.Name] = $property.Value }
+        }
+        $preview = $command
+        if ($extra.Count -gt 0) {
+            $preview += "`r`n`r`n附加请求详情`r`n" + (ConvertTo-Json -InputObject $extra -Depth 30)
+        }
         $detail = New-Object Windows.Forms.RichTextBox -Property @{
-            Dock='Fill'; ReadOnly=$true; WordWrap=$false; DetectUrls=$false; Text=$command
+            Dock='Fill'; ReadOnly=$true; WordWrap=$false; DetectUrls=$false; Text=$preview
             Font=[Drawing.Font]::new('Consolas',10)
         }
         $layout.Controls.Add($detail,0,1)
