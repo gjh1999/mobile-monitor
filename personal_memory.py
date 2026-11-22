@@ -8,6 +8,7 @@ import sqlite3
 import stat
 import tempfile
 import uuid
+from contextlib import closing
 from pathlib import Path, PureWindowsPath
 
 from handoff import (
@@ -308,12 +309,12 @@ def _saved_session_id(path):
         return head.get("thread_id") if isinstance(head, dict) and set(head) == set(MEMORY_FIELDS) else None
 
 
-def purge_session_copies(mirror, home, projects, tid, *, source_keys=()):
+def purge_session_copies(mirror, home, projects, tid, *, part_directories=()):
     """Clear app-managed replicas and recognizable backups for one retired UUID."""
     if str(uuid.UUID(tid)) != tid:
         raise ValueError("会话 ID 无效")
     suffix = f"-{tid}.jsonl"
-    part_keys = set(source_keys)
+    part_keys = set()
     for project, (root, subdir) in projects.items():
         if not root.is_dir():
             continue
@@ -334,8 +335,11 @@ def purge_session_copies(mirror, home, projects, tid, *, source_keys=()):
 
     for key, in mirror.db.execute("SELECT key FROM local_file WHERE key LIKE ?", (f"sessions/%{suffix}",)):
         part_keys.add(manifest_key(key))
-    for key in part_keys:
-        scratch = safe_path(mirror.backups.parent, "parts/" + digest(key.encode())[:16])
+    directories = set(part_directories) | {digest(key.encode())[:16] for key in part_keys}
+    for directory in directories:
+        if not re.fullmatch(r"[a-f0-9]{16}", directory):
+            raise ValueError("会话分块缓存目录无效")
+        scratch = safe_path(mirror.backups.parent, "parts/" + directory)
         for path in scratch.iterdir() if scratch.is_dir() else ():
             if re.fullmatch(r"[a-f0-9]{24}", path.name):
                 part = safe_path(scratch, path.name)
@@ -343,7 +347,8 @@ def purge_session_copies(mirror, home, projects, tid, *, source_keys=()):
                     part.unlink()
 
     native_backups = safe_path(home, f"lanxi-handoff-backups/{tid}")
-    backup_roots = ((mirror.backups, r"[a-f0-9]{64}"), (native_backups, r"[a-f0-9]{64}\.jsonl"))
+    memory_backups = safe_path(mirror.backups.parent, "memory-backups")
+    backup_roots = ((memory_backups, r"[a-f0-9]{64}"), (native_backups, r"[a-f0-9]{64}\.jsonl"))
     for folder, pattern in backup_roots:
         if folder.is_symlink():
             raise ValueError("本机会话备份路径包含链接")

@@ -42,6 +42,7 @@ def checkpoint(stop):
 
 
 def upload(store, index, key, previous, data, stop):
+    session_id = key.rsplit("/", 1)[-1][-42:-6]
     parts = []
     for offset in range(0, len(data), CHUNK_SIZE):
         checkpoint(stop)
@@ -54,7 +55,7 @@ def upload(store, index, key, previous, data, stop):
             if current != EMPTY:
                 raise ValueError("服务器会话分块摘要不一致")
             try:
-                store.put(block_key, EMPTY, block)
+                store.put(block_key, EMPTY, block, session_id=session_id)
             except Changed:
                 if digest(store.read(block_key)) != sha:
                     raise

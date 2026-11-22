@@ -14,6 +14,7 @@ MAX_RECORD = 10 * 1024**2
 EMPTY = "-"
 RETIREMENT_PREFIX = "retirement/"
 RETIREMENT_ACK_PREFIX = "retirement-acks/"
+RETIREMENT_SOURCES_PREFIX = "retirement-sources/"
 MAX_RETIREMENT_MARKDOWN = 64 * 1024
 _THREAD_ID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 _SHA256 = r"[0-9a-f]{64}"
@@ -67,8 +68,9 @@ def _manifest_parts(data):
 
 
 class Records:
-    def __init__(self, path, space, device=None):
+    def __init__(self, path, space, device=None, *, check_task_owner=False):
         self.path, self.space, self.device = path, space, device
+        self.check_task_owner = check_task_owner
         with closing(sqlite3.connect(path)) as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS personal_records(
@@ -106,6 +108,12 @@ class Records:
                        ((self.space, thread, sha) for sha in parts))
 
     def _purge_session(self, db, thread):
+        if self.check_task_owner:
+            owner = db.execute("SELECT device FROM personal_task_locks WHERE space=? AND session=?",
+                               (self.space, thread)).fetchone()
+            if owner and owner[0] is not None and owner[0] != self.device:
+                raise Changed("另一台设备仍持有此会话，请先交还")
+            db.execute("DELETE FROM personal_task_locks WHERE space=? AND session=?", (self.space, thread))
         names = [row[0] for row in db.execute(
             "SELECT key FROM personal_records WHERE space=? AND "
             "(key GLOB ? OR key GLOB ? OR key GLOB ?)",
@@ -120,6 +128,11 @@ class Records:
                 raw = db.execute("SELECT data FROM personal_records WHERE space=? AND key=?",
                                  (self.space, name)).fetchone()[0]
                 candidates.update(_manifest_parts(raw))
+        part_directories = sorted({digest((_MANIFESTS + name.partition("/")[2]).encode())[:16]
+                                   for name in names if name.startswith(("sessions/", _MANIFESTS))})
+        source = json.dumps({"v": 1, "partDirectories": part_directories}, separators=(",", ":")).encode("ascii")
+        db.execute("INSERT OR REPLACE INTO personal_records VALUES(?,?,?,?)",
+                   (self.space, RETIREMENT_SOURCES_PREFIX + thread, digest(source), source))
         db.executemany("DELETE FROM personal_records WHERE space=? AND key=?", ((self.space, name) for name in names))
         db.execute("DELETE FROM personal_session_parts WHERE space=? AND thread=?", (self.space, thread))
         if not candidates:
@@ -141,6 +154,8 @@ class Records:
     def put(self, key, previous, data, *, session_id=None):
         if len(key) > 650 or data is not None and len(data) >= MAX_RECORD:
             raise ValueError("同步记录过大")
+        if key.startswith(RETIREMENT_SOURCES_PREFIX):
+            raise ValueError("会话缓存定位信息由服务器维护")
         marker = re.fullmatch(RETIREMENT_PREFIX + f"({_THREAD_ID})", key)
         ack = re.fullmatch(RETIREMENT_ACK_PREFIX + f"({_THREAD_ID})/([A-Za-z0-9_-]{{1,80}})", key)
         if not (marker or ack) and key.startswith((RETIREMENT_PREFIX, RETIREMENT_ACK_PREFIX)):
@@ -264,7 +279,7 @@ def install_routes(app, path, enrollment):
         space = enrollment.space(x_lanxi_device, authorization)
         if not space:
             raise HTTPException(403, "此设备未配对个人空间")
-        return Records(path, space, x_lanxi_device)
+        return Records(path, space, x_lanxi_device, check_task_owner=True)
 
     authorized = Depends(authorize)
 

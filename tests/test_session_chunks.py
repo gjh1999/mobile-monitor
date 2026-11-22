@@ -67,12 +67,12 @@ class ChunkSessionTest(unittest.TestCase):
         self.save("source", self.long)
         writes = []
         put = self.store.put
-        def broken_put(key, previous, data):
+        def broken_put(key, previous, data, **kwargs):
             if key.startswith(CHUNKS):
                 writes.append(key)
                 if len(writes) == 2:
                     raise OSError("interrupted upload")
-            return put(key, previous, data)
+            return put(key, previous, data, **kwargs)
         with patch.object(self.store, "put", side_effect=broken_put):
             self.assertIn("interrupted upload", self.cycle("source")[1])
         self.assertNotIn(manifest_key(self.key), self.store.index())

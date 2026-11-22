@@ -7,6 +7,7 @@ from fastapi import Depends, Header, HTTPException, Path
 from pydantic import BaseModel, Field
 
 from coordination import Conflict, Ownership
+from personal_relay import RETIREMENT_PREFIX
 
 Session = Annotated[str, Path(pattern=r"^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$")]
 
@@ -92,6 +93,10 @@ class TaskLocks(Ownership):
 
     def claim(self, space, session, device, request):
         with self.transaction() as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='personal_records' AND type='table'").fetchone():
+                if db.execute("SELECT 1 FROM personal_records WHERE space=? AND key=?",
+                              (space, RETIREMENT_PREFIX + session)).fetchone():
+                    raise Conflict("此 Codex 会话已删除，无法再接入。")
             row = self.entry(db, space, session)
             if row and row["device"]:
                 if row["device"] != device:
