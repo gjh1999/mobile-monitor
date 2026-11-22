@@ -2,6 +2,12 @@
 
 > 历史验收日志。各条结论只描述记录当时的版本和环境；旧文件名与路径的迁移见 [整理记录](REORGANIZATION_2026-11-14.md)，当前操作见 [运行与维护](../RUNBOOK.md)。
 
+## 2026-11-22 R49 本地消息响应与原生标题验收
+
+- 环境为 Windows 11 26100、Python 3.14.7、PySide6 6.12.0。使用隔离会话和合成指令验证 `fa3616f` 的窗口响应。在 Codex 和 Claude 测试中，后台入队和后续投递各阻塞 5 秒，测量从 Qt Enter 事件到待发送气泡绘制的时间，100 毫秒内通过。最终复跑测得 Codex 6.3 毫秒、Claude 7.9 毫秒，期间覆盖继续输入、切换会话和连续相同文本逐条去重。测量止于本机反馈，没有测量模型响应时间。
+- 基线从 `git show R48:desktop_qt.py` 提取 `MainWindow.operate`，后台 `submit` 注入 `time.sleep(5)`。R48 的输入框在 5000.5 毫秒后清空，当时的发送流程没有待发送气泡。R49 使用 `.venv\Scripts\python.exe -B tests/smoke_desktop.py --output build-exe/verification/r49-timing-confirm` 复现，截图写入指定目录，日志位于 `build-exe/verification/portable-r49/desktop-smoke.log`。
+- 隔离的 Windows Codex 会话验证连续改名后读取原生标题与重启列表。离线改名后另外修改原生标题可进入冲突，处理后重新读取 Codex 确认结果。文档入口见 [桌面操作说明](../DESKTOP.md) 和 [验收工单](../DELIVERY_STATUS.md#即时发送标题同步与项目介绍阅读模式)。
+
 ## 2026-11-21 本机发布目录整理
 
 - 稳定版沿用已发布的 R36 私人 ZIP，整理后复核 SHA-256 与线上发布记录一致。从 `a9bc851` 的 R36 源码构建本机开发版 `release/Lanxi.exe`，SHA-256 为 `7b20d52592147404c614fbc6cf7df1b793883f22d9b6c94a844384fce27d9199`。
