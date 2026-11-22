@@ -199,8 +199,8 @@ def transfer_and_retire(flow, controller, source, target, markdown, version):
     item = {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': context}]}
     with TRANSFER_LOCK, closing(sqlite3.connect(safe_path(flow.root, 'session-transfers.sqlite3'))) as ledger:
         ledger.execute('CREATE TABLE IF NOT EXISTS transfers (source TEXT PRIMARY KEY, target TEXT NOT NULL, '
-                       'checksum TEXT NOT NULL, path TEXT NOT NULL, offset INTEGER NOT NULL, published INTEGER NOT NULL)')
-        previous = ledger.execute('SELECT target,checksum,path,offset,published FROM transfers WHERE source=?',
+                       'checksum TEXT NOT NULL, path TEXT NOT NULL, offset INTEGER NOT NULL, verified INTEGER NOT NULL)')
+        previous = ledger.execute('SELECT target,checksum,path,offset,verified FROM transfers WHERE source=?',
                                   (source,)).fetchone()
         if previous and previous[:2] != (target, checksum):
             raise ValueError('这条原会话已有一笔摘要转移，请使用相同的目标和摘要重试。')
@@ -209,7 +209,7 @@ def transfer_and_retire(flow, controller, source, target, markdown, version):
         if store is None or locks is None or not store.retirement_supported():
             raise ValueError('个人协调服务暂未启用跨机删除。')
         index = store.index()
-        if index.get(RETIREMENT_PREFIX + source, EMPTY) != EMPTY and previous:
+        if index.get(RETIREMENT_PREFIX + source, EMPTY) != EMPTY and previous and previous[4]:
             return publish_retirement(flow, source, markdown, version)
         if any(index.get(RETIREMENT_PREFIX + tid, EMPTY) != EMPTY for tid in (source, target)):
             raise ValueError('原会话或目标会话已进入删除流程。')
@@ -256,10 +256,9 @@ def transfer_and_retire(flow, controller, source, target, markdown, version):
         if not found:
             raise ValueError('尚未在目标会话确认摘要写入，原会话已保留。重试会核对已写入的记录。') from error
 
-        document = publish_retirement(flow, source, markdown, version)
         with ledger:
-            ledger.execute('UPDATE transfers SET published=1 WHERE source=?', (source,))
-        return document
+            ledger.execute('UPDATE transfers SET verified=1 WHERE source=?', (source,))
+        return publish_retirement(flow, source, markdown, version)
 
 
 def delete_local_session(root, home, tid):

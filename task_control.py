@@ -126,11 +126,13 @@ class TaskControl:
         except RPCError:
             return {}
 
-    def _load(self, rpc, tid, operation=None):
+    def _load(self, rpc, tid, operation=None, *, guard=None):
         try:
             params = {'threadId': tid, 'excludeTurns': True}
             if operation is not None:
                 params['_sendGuard'] = lambda: not self._connection_cancelled(operation)
+            elif guard is not None:
+                params['_sendGuard'] = guard
             response = rpc.call('thread/resume', params)
             thread = response.get('thread', {})
             if thread.get('id') != tid:
@@ -263,10 +265,15 @@ class TaskControl:
                                                         "AND status IN ('queued','running') LIMIT 1",
                                                         (source, target)).fetchone())
 
+                def send_allowed():
+                    if not available():
+                        raise ControlDenied(detail='会话状态刚变化，未写入摘要。')
+                    return True
+
                 if not available():
                     raise ValueError('两条会话还有待处理操作，请等操作完成后重试。')
                 if target not in rpc.owned_threads or not self.runtime.get(target, {}).get('canControl'):
-                    loaded = self._load(rpc, target)
+                    loaded = self._load(rpc, target, guard=send_allowed)
                     if not loaded.get('canControl'):
                         raise ValueError(loaded['message'])
                     with self.lock:
@@ -280,7 +287,7 @@ class TaskControl:
                 if not available():
                     raise ValueError('会话状态刚变化，请重试。')
                 reserve()
-                rpc.call('thread/inject_items', {'threadId': target, 'items': [item], '_sendGuard': available})
+                rpc.call('thread/inject_items', {'threadId': target, 'items': [item], '_sendGuard': send_allowed})
             finally:
                 with self.lock:
                     self.context_threads.difference_update((source, target))
