@@ -35,7 +35,80 @@ from personal_relay import (
 )
 from plain_projects import folder_bindings, folder_id, folder_index
 from project_library import configured_root, discover
+from project_sync_policy import PERIODS, ProjectSyncSettings, _UNSET, project_key
 from rpc_errors import RPCError
+
+
+OPEN_SYNC_DELAY = 5
+OPEN_SYNC_RETRY_DELAY = 15
+DEFERRED_POLICIES = {*PERIODS, "on_open"}
+
+
+class ProjectSyncRound:
+    def __init__(self, policies, last_success, parent, local, immediate, opened, full, *, waiting=()):
+        self.policies = policies
+        self.last_success = last_success
+        self.parent = parent
+        self.by_path = {path: project for project, path in local.items()}
+        self.immediate = immediate
+        self.opened = opened
+        self.waiting = set(waiting)
+        self.full = full
+        self.now = time.time()
+        self.deferred = {}
+
+    def identities(self, project, path):
+        if project.startswith(".folder/"):
+            alternate = self.by_path.get(path)
+            return (project, alternate) if alternate and alternate != project else (project,)
+        if path is not None and self.parent and path != self.parent and path.is_relative_to(self.parent):
+            return folder_id(path.relative_to(self.parent).as_posix()), project
+        return (project,)
+
+    def policy(self, project, path):
+        return next((self.policies[key] for key in self.identities(project, path) if key in self.policies), None)
+
+    def priority(self, project, path):
+        identities = self.identities(project, path)
+        if self.immediate.intersection(identities):
+            return 0
+        policy = self.policy(project, path)
+        if policy == "high":
+            return 1
+        if self.opened.intersection(identities):
+            return 2
+        return 3 if policy is None else 4
+
+    def due(self, project, path):
+        policy = self.policy(project, path)
+        keys = self.identities(project, path)
+        if self.full or self.immediate.intersection(keys) or self.opened.intersection(keys):
+            return True
+        if self.waiting.intersection(keys):
+            self.deferred[project] = policy or "on_open"
+            return False
+        if policy not in DEFERRED_POLICIES:
+            return True
+        if policy in PERIODS:
+            last = max((self.last_success[key][0] for key in keys if key in self.last_success
+                        and self.last_success[key][1] == str(path)), default=-1)
+            if not 0 <= self.now - last < PERIODS[policy] or last < 0:
+                return True
+        self.deferred[project] = policy
+        return False
+
+    def mark_success(self, project, path, completed):
+        for key in self.identities(project, path):
+            self.last_success[key] = [completed, str(path)]
+
+
+def load_sync_clock(path):
+    try:
+        clock = json.loads(path.read_bytes())
+        return {key: row for key, row in clock.items() if isinstance(row, list) and len(row) == 2
+                and type(row[0]) in (int, float) and isinstance(row[1], str)}
+    except (OSError, ValueError, AttributeError):
+        return {}
 
 
 def save_retirement_summary(root, tid, markdown, expected_sha):
@@ -77,8 +150,15 @@ class PersonalSync:
         self.epoch = 0
         self.coordination = coordination
         self.pending_settings = None
-        self.priority = None
+        self._immediate = set()
+        self._force_all = False
+        self._opened = {}
+        self.project_settings = ProjectSyncSettings(self.root)
+        self._last_success = {}
+        self.deferred_projects = {}
         self._active_sync = None
+        self._active_sync_full = False
+        self._active_sync_force = False
         self._pending_sync = None
         self._sync_phase = ""
         self._sync_started = 0
@@ -114,8 +194,10 @@ class PersonalSync:
         return None
 
     def snapshot(self):
+        preferences = self.project_settings.snapshot()
         with self.lock:
             return {
+                **preferences,
                 "projects": dict(self.projects),
                 "folderProjects": dict(self.folders),
                 "sessions": dict(self.threads),
@@ -130,7 +212,23 @@ class PersonalSync:
                 "largeAvailable": dict(self.large_available),
                 "retirements": {tid: dict(row) for tid, row in self.retirements.items()},
                 "retirementSupported": self.retirement_supported,
+                "deferredProjects": dict(self.deferred_projects),
             }
+
+    def project_policy(self, project, policy=_UNSET):
+        result = self.project_settings.project_policy(project, policy)
+        if policy is not _UNSET:
+            self.wake.set()
+        return result
+
+    def project_groups(self, groups=_UNSET):
+        return self.project_settings.project_groups(groups)
+
+    def save_project_settings(self, groups, changes):
+        saved = self.project_settings.save_project_settings(groups, changes)
+        if changes:
+            self.wake.set()
+        return saved
 
     def _prepare_retirements(self, store, index, errors, stop):
         def unavailable():
@@ -286,13 +384,15 @@ class PersonalSync:
         return None
 
     def publish_handoff(self, tid):
-        epoch = self.snapshot()["epoch"]
+        previous = self.snapshot()["completed"]
         self.request(None)
         deadline = time.monotonic() + 24
         while time.monotonic() < deadline:
             view = self.snapshot()
             session = view["sessions"].get(tid)
-            if view["epoch"] > epoch and session and view["status"].get(session["project"]) == "已同步":
+            project = session["project"] if session else None
+            if (session and view["completed"].get(project, 0) > previous.get(project, 0)
+                    and view["status"].get(project) == "已同步"):
                 try:
                     store = self.store()
                     checkpoint = confirm_published_session(store, session, tid) if store else None
@@ -341,16 +441,43 @@ class PersonalSync:
 
     def request(self, project):
         with self.lock:
-            self.priority = project
+            if project is None:
+                self._force_all = True
+            else:
+                self._immediate.add(project_key(project))
+                self._opened.pop(project, None)
             epoch = self.completed.get(project, 0)
         self.wake.set()
         return epoch
+
+    def request_after_open(self, project):
+        project_key(project)
+        with self.lock:
+            if project not in self._immediate:
+                self._opened.setdefault(project, time.monotonic() + OPEN_SYNC_DELAY)
+            return self.completed.get(project, 0)
+
+    def _opened_due(self):
+        now = time.monotonic()
+        with self.lock:
+            return any(deadline <= now for deadline in self._opened.values())
+
+    def _finish_open_requests(self, requests, successful, attempted):
+        retry_at = time.monotonic() + OPEN_SYNC_RETRY_DELAY
+        with self.lock:
+            for project, previous in requests.items():
+                if self._opened.get(project) != previous:
+                    continue
+                if project in successful:
+                    del self._opened[project]
+                elif project in attempted:
+                    self._opened[project] = retry_at
 
     def request_manual_sync(self, *, fresh=False):
         with self.lock:
             if self._pending_sync is not None:
                 return self._pending_sync
-            if self._active_sync is not None and not fresh:
+            if self._active_sync is not None and self._active_sync_full and not fresh:
                 return self._active_sync
             self._pending_sync = Future()
             self.wake.set()
@@ -542,12 +669,21 @@ class PersonalSync:
             pack([str(channel), str(self.home), (self.coordination or {}).get("device")])
         ).hexdigest()[:24]
         if self.scope != scope:
+            previous_scope = self.scope
             self.scope = scope
             self.poll_cache.clear()
             self.local_state = self.root / ".local" / "personal-sync" / scope
+            self._last_success = load_sync_clock(self.local_state / "project-sync-clock.json")
             with self.lock:
                 self.retirements = {}
                 self.retirement_supported = False
+                self.deferred_projects = {}
+                if previous_scope is not None:
+                    self.threads = {}
+                    self.status = {}
+                    self.backup_status = {}
+                    self.large_inventory = {}
+                    self.large_available = {}
         self.local_state.mkdir(parents=True, exist_ok=True)
         catalog = self.local_state / "catalog.json"
         preferences = self.local_state / "published.json"
@@ -586,10 +722,20 @@ class PersonalSync:
             for file, data in ((catalog, pack(specs)), (preferences, pack(published))):
                 if not file.is_file() or file.read_bytes() != data:
                     atomic_write(file, data)
+        policies = self.project_settings.snapshot()["projectPolicies"]
+        now = time.monotonic()
         with self.lock:
             self.projects = {p: str(path) for p, path in local.items()}
-            first = self.priority
-            self.priority = None
+            immediate, self._immediate = self._immediate, set()
+            requests = dict(self._opened)
+            opened = {project for project, deadline in requests.items() if deadline <= now}
+            full = self._force_all or self._active_sync_force
+            self._force_all = False
+            previous_status = dict(self.status)
+            previous_backups = dict(self.backup_status)
+        parent = configured_root(self.root)
+        plan = ProjectSyncRound(policies, self._last_success, parent, local, immediate, opened, full,
+                                waiting=requests.keys() - opened)
         ready = {}
         backups = self.code_backups() if isinstance(store, RemoteRecords) else None
         backup_status = {project: "等待服务器或本机项目可用" for project in specs} if cloud else {}
@@ -630,8 +776,8 @@ class PersonalSync:
                 errors[project] = str(error) if isinstance(error, ValueError) else "本机目录或网络暂不可用"
 
         jobs = queue.Queue()
-        for project in sorted(local, key=lambda p: p != first):
-            if project not in errors:
+        for project in sorted(local, key=lambda p: plan.priority(p, local[p])):
+            if project not in errors and plan.due(project, local[project]):
                 jobs.put(project)
         with self.lock:
             self._sync_phase = "正在检查 GitHub 与服务器代码备份"
@@ -676,22 +822,28 @@ class PersonalSync:
         folders, sources = {}, {}
         if (check_memory or isinstance(store, RemoteRecords)) and not stop.is_set():
             device = store.client.device if isinstance(store, RemoteRecords) else self.scope
-            folders, sources = folder_bindings(configured_root(self.root), self.home, store, index,
+            folders, sources = folder_bindings(parent, self.home, store, index,
                                                self.poll_cache, local, self.code_folders, device, errors, stop)
-            if not check_memory:
-                for project, root in folders.items():
-                    if root.is_dir():
-                        marker = folder_index(root, project, source=project in sources)
-                        if not marker.is_file():
-                            atomic_write(marker, pack({}))
+        active_folders = {project: root for project, root in folders.items() if plan.due(project, root)}
+        if not check_memory:
+            for project, root in active_folders.items():
+                if root.is_dir():
+                    marker = folder_index(root, project, source=project in sources)
+                    if not marker.is_file():
+                        atomic_write(marker, pack({}))
         if deletion_pending:
             retirement_projects = {project: (path, specs[project]["memoryPath"])
                                    for project, path in local.items() if project in specs}
             retirement_projects.update({project: (root, ".lanxi") for project, root in folders.items()})
             self._finish_retirements(store, retirements, deletion_pending, retirement_projects, errors, stop)
+        memory_failures = set()
         if check_memory:
 
             def report(key, error):
+                kind, _, path = key.partition("/")
+                parts = path.split("/", 2)
+                if kind in ("notes", "sessions", "long-term") and len(parts) == 3:
+                    memory_failures.add("/".join(parts[:2]))
                 errors.setdefault(
                     "记忆", key + " · " + (str(error) if isinstance(error, ValueError) else "暂不可读写")
                 )
@@ -701,9 +853,12 @@ class PersonalSync:
                 # Keep the same session namespace when a folder gains a private Git origin.
                 aliased = set(folders.values())
                 session_roots = {project: row for project, row in ready.items() if row[0] not in aliased}
-                session_roots.update({project: (root, ".lanxi") for project, root in folders.items()})
+                session_roots.update({project: (root, ".lanxi") for project, root in active_folders.items()})
+                deferred_roots = {project: root for project, root in local.items()
+                                  if project in plan.deferred and root not in aliased}
+                deferred_roots.update({project: root for project, root in folders.items() if project in plan.deferred})
                 sessions = sync_memories(mirror, index, self.home, session_roots, self.poll_cache, report, stop,
-                                         git_projects=ready, retired=retirements)
+                                         git_projects=ready, retired=retirements, deferred_roots=deferred_roots)
                 for project, (root, _) in session_roots.items():
                     records = {
                         tid: {"cwd": s["relative"], "updated": s["updated"]}
@@ -720,16 +875,22 @@ class PersonalSync:
                     if not stop.is_set() and (not marker.is_file() or marker.read_bytes() != data):
                         atomic_write(marker, data)
                 with self.lock:
-                    self.threads = sessions
+                    self.threads = {tid: row for tid, row in self.threads.items()
+                                    if row["project"] in plan.deferred and tid not in retirements}
+                    self.threads.update(sessions)
             finally:
                 mirror.db.close()
         folder_git = {}
+        just_promoted = set()
         if isinstance(store, RemoteRecords):
-            from plain_git import promote
+            from plain_git import complete, promote
             synchronized = {local[repo] for repo in ready if errors.get(repo) == "已同步"}
-            for project, directory in sorted(sources.items()):
+            order = sorted(sources.items(), key=lambda row: (plan.priority(*row), row[0]))
+            for project, directory in order:
                 if stop.is_set():
                     break
+                if project not in active_folders:
+                    continue
                 if directory in synchronized:
                     folder_git[project] = "已接入 GitHub"
                     self.git_retries.pop((self.scope, project), None)
@@ -740,13 +901,17 @@ class PersonalSync:
                     continue
                 try:
                     self._phase(f"正在为 {directory.name} 接入 GitHub")
+                    was_linked = complete(directory)
                     folder_git[project] = promote(directory)
+                    if not was_linked:
+                        just_promoted.add(project)
                     self.git_retries.pop((self.scope, project), None)
                 except (OSError, ValueError, subprocess.SubprocessError) as error:
                     message = str(error) if isinstance(error, SyncIssue) else "自动 Git 接入暂未完成，稍后重试"
                     self.git_retries[self.scope, project] = time.monotonic() + 60, message
                     folder_git[project] = message
         inventory = None
+        inventory_errors = {}
         if isinstance(store, RemoteRecords) and not stop.is_set():
             from large_inventory import sync_inventory
             self._phase("正在核对大文件清单")
@@ -761,22 +926,49 @@ class PersonalSync:
                 with self.lock:
                     self.large_inventory = {**{key: value for key, value in self.large_inventory.items()
                                                 if key in inventory_errors or key not in ready}, **inventory}
-                    self.large_available = available
+                    self.large_available = {**{key: value for key, value in self.large_available.items()
+                                                if key in inventory_errors or key in plan.deferred}, **available}
             except (ValueError, OSError, TypeError):
                 errors["大文件"] = "大文件清单暂不可用，后台将重试"
+                inventory_errors = dict.fromkeys(ready, errors["大文件"])
+        for project in active_folders:
+            errors.setdefault(project, "已同步")
+        successful = set()
+        if not stop.is_set() and not (channel and store is None):
+            completed = time.time()
+            for project, path in {**local, **active_folders}.items():
+                identities = plan.identities(project, path)
+                if (project in plan.deferred or errors.get(project) != "已同步"
+                        or any(key in memory_failures or key in inventory_errors for key in identities)
+                        or any(key in just_promoted for key in identities)
+                        or any(key in local and (errors.get(key) != "已同步" or backups is not None
+                               and backup_status.get(key) not in ("已备份", "没有可备份的代码")) for key in identities)
+                        or any(key in folder_git and folder_git[key] != "已接入 GitHub" for key in identities)):
+                    continue
+                plan.mark_success(project, path, completed)
+                successful.update(identities)
+            clock = self.local_state / "project-sync-clock.json"
+            tracked = {key: row for key, row in self._last_success.items() if policies.get(key) in PERIODS}
+            data = pack(tracked)
+            if (tracked or clock.is_file()) and (not clock.is_file() or clock.read_bytes() != data):
+                atomic_write(clock, data)
+        for project in plan.deferred:
+            errors.setdefault(project, previous_status.get(project, "按项目策略等待同步"))
+            if project in backup_status:
+                backup_status[project] = previous_backups.get(project, "按项目策略等待备份")
         with self.lock:
             self.folders = {project: str(root) for project, root in folders.items()}
-            # This status gates session handoff. Per-thread transfer failures omit
-            # that thread from self.threads; code/backup counters remain Git-only.
-            for project in folders:
-                errors.setdefault(project, "已同步")
-            for project in (*specs, *folders):
+            self.deferred_projects = dict(plan.deferred)
+            # Waiting for policy does not satisfy the epoch requested by Open.
+            for project in (specs.keys() | folders.keys()) - plan.deferred.keys():
                 self.completed[project] = self.completed.get(project, 0) + 1
             self.epoch += 1
             self.status = errors
             self.backup_status = backup_status
             self.connection = connection
+        self._finish_open_requests(requests, successful, opened)
         return {"connection": connection, "projects": len(specs), "memoryChecked": check_memory,
+                "deferredProjects": dict(plan.deferred),
                 "untrustedGit": sorted(map(str, untrusted), key=str.casefold),
                 "largeInventory": inventory, "status": errors,
                 "codeBackups": backup_status,
@@ -787,13 +979,18 @@ class PersonalSync:
     def worker(self, stop):
         interval = max(2, min(300, int(self.settings.get("intervalSeconds", 10))))
         while not stop.is_set():
+            policies = self.project_settings.snapshot()["projectPolicies"]
             with self.lock:
                 self.wake.clear()
                 current, self._pending_sync = self._pending_sync, None
-                if current is None or not current.set_running_or_notify_cancel():
+                manual = current is not None and current.set_running_or_notify_cancel()
+                if not manual:
                     current = Future()
                     current.set_running_or_notify_cancel()
                 self._active_sync = current
+                self._active_sync_force = manual
+                self._active_sync_full = (manual or self._force_all or
+                                          not self._opened and DEFERRED_POLICIES.isdisjoint(policies.values()))
                 self._sync_started = time.monotonic()
                 self._sync_phase = "正在连接个人工作区"
                 self._sync_total = self._sync_finished = 0
@@ -802,17 +999,23 @@ class PersonalSync:
             try:
                 result = self.cycle(stop)
             except (OSError, ValueError, sqlite3.Error, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired):
+                now = time.monotonic()
                 with self.lock:
+                    requests = dict(self._opened)
                     self.epoch += 1
                     self.status = {"配对": "个人同步暂不可用，请检查项目登记和配对连接"}
                     if self.connection:
                         self.connection = self.status["配对"]
+                due = {project for project, deadline in requests.items() if deadline <= now}
+                self._finish_open_requests(requests, set(), due)
             finally:
                 with self.lock:
                     self._active_sync = None
+                    self._active_sync_full = False
+                    self._active_sync_force = False
                 current.set_result(None if stop.is_set() else result)
             for _ in range(interval * 4):
-                if stop.wait(0.25) or self.wake.is_set():
+                if stop.wait(0.25) or self.wake.is_set() or self._opened_due():
                     break
         with self.lock:
             pending, self._pending_sync = self._pending_sync, None

@@ -380,7 +380,8 @@ def purge_session_copies(mirror, home, projects, tid, *, part_directories=()):
         mirror.db.execute("DELETE FROM native_memory WHERE key LIKE ?", (f"long-term/%/{tid}",))
 
 
-def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, git_projects=None, retired=()):
+def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, git_projects=None, retired=(),
+                  deferred_roots=None):
     """Keep native sessions under their stable identity and notes under their Git repository."""
 
     def attempt(key, fn, *args):
@@ -412,12 +413,17 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
         git_projects = {key: row for key, row in projects.items() if not key.startswith(".folder/")}
     for project, (root, subdir) in git_projects.items():
         sync_notes("notes/" + project + "/", safe_path(root, subdir))
+    if not roots and not git_projects:
+        return {}
+    association_roots = {**(deferred_roots or {}), **{project: root for project, (root, _) in projects.items()}}
+    by_specificity = sorted(association_roots.items(), key=lambda row: -len(row[1].parts))
     # Cache unchanged native files; never move an active writer's live database or WAL.
     for path in (home / "sessions").rglob("rollout-*.jsonl"):
         if stop.is_set():
             return {}
         tid = path.stem[-36:]
         stamp = None
+        association = None
         try:
             if str(uuid.UUID(tid)) != tid or tid in retired:
                 continue
@@ -425,7 +431,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
             statinfo = path.stat()
             stamp = statinfo.st_mtime_ns, statinfo.st_size
             association = poll_cache.get(("project", path))
-            if association is None:
+            if association not in association_roots:
                 with path.open("rb") as source:
                     meta = json.loads(source.readline(262144))["payload"]
                 if meta.get("id") == tid and meta.get("cwd"):
@@ -433,7 +439,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
                     association = next(
                         (
                             p
-                            for p, (r, _) in sorted(projects.items(), key=lambda x: -len(x[1][0].parts))
+                            for p, r in by_specificity
                             if source_root.is_relative_to(r)
                         ),
                         None,
@@ -441,6 +447,8 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
                     if association:
                         poll_cache["project", path] = association
             if association:
+                if association not in roots:
+                    continue
                 thread_projects[tid] = association
             elif not any((dest / ".lanxi" / "sessions" / path.name).is_file() for dest in roots.values()):
                 continue
@@ -448,7 +456,8 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
             if cached == stamp:
                 continue
             if statinfo.st_size > MAX_FILE:
-                report("session/" + tid, ValueError("原生会话超过 64 MiB 同步上限"))
+                key = f"sessions/{association}/{path.name}" if association else "session/" + tid
+                report(key, ValueError("原生会话超过 64 MiB 同步上限"))
                 continue
             data = read_transcript(path)
             ident, _, cwd = session_info(data)
@@ -457,7 +466,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
             mapped = next(
                 (
                     (p, Path(cwd).relative_to(root).as_posix())
-                    for p, (root, _) in sorted(projects.items(), key=lambda x: -len(x[1][0].parts))
+                    for p, root in by_specificity
                     if Path(cwd).is_relative_to(root)
                 ),
                 None,
@@ -473,6 +482,8 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
                         break
             if mapped:
                 project, relative = mapped
+                if project not in roots:
+                    continue
                 envelope = safe_path(roots[project], ".lanxi/sessions/" + path.name)
                 header = pack({"name": path.name, "cwd": relative}) + b"\n"
                 old = read_envelope(envelope)
@@ -485,7 +496,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
         except (ValueError, TypeError, IndexError, KeyError, OSError) as error:
             # Incomplete turns are revisited when the file changes.
             if isinstance(error, Changed):
-                report("session/" + tid, error)
+                report(f"sessions/{association}/{path.name}" if association else "session/" + tid, error)
             if not isinstance(error, Changed) and stamp is not None:
                 poll_cache[path] = stamp
     sessions = {}

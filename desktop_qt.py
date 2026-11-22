@@ -39,6 +39,7 @@ from desktop_pairing import CONNECT_CLOUD, PairingDialog, WorkspaceConnectDialog
 from desktop_poetry import COVER_VERSES
 from desktop_wallpapers import WallpaperDialog
 from desktop_projects import SessionTitles, folder_name, project_group
+from desktop_project_sync import POLICIES, ProjectSyncDialog
 from desktop_retirement import RetirementDialog
 from desktop_theme import (
     SLASH_MENU_STYLE, STYLESHEET, configure_text, format_reading_document, insert_markdown,
@@ -47,6 +48,8 @@ from desktop_theme import (
 from desktop_update import DesktopUpdates
 from model_groups import Organizer
 from portable_update import VERSION
+from plain_projects import folder_id, receiver_placeholder
+from project_sync_policy import ProjectSyncSettings
 from project_library import ENTRY_PREFIX, configured_root, set_project_root
 from rpc_errors import RPCError
 
@@ -54,6 +57,7 @@ MUTED = '#24495f'
 WINDOW_TITLE = '澜汐'
 TASK_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
 TASK_DIRECTORY_ROLE = Qt.ItemDataRole.UserRole + 2
+PROJECT_CATEGORY_ROLE = Qt.ItemDataRole.UserRole + 3
 UUID_PATTERN = re.compile(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b')
 
 
@@ -680,6 +684,9 @@ class MainWindow(QMainWindow):
         self._task_signature = None
         self.session_titles = SessionTitles()
         self.project_items = {}
+        self.category_items = {}
+        self._project_sync_view = {}
+        self.local_project_settings = ProjectSyncSettings(monitor.ROOT)
         self.task_items = {}
         self.collapsed_projects = {'codex': set(), 'claude': set()}
         self._pending_approvals = {}
@@ -864,6 +871,7 @@ class MainWindow(QMainWindow):
         self.task_choice.setWordWrap(True)
         self.task_choice.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.task_choice.currentItemChanged.connect(self.select_task)
+        self.task_choice.itemClicked.connect(self.clicked_task)
         self.task_choice.itemClicked.connect(self.focus_task)
         self.task_choice.itemActivated.connect(self.focus_task)
         self.task_choice.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -995,10 +1003,11 @@ class MainWindow(QMainWindow):
         self.populate_app_menu(self.edge_menu.menus[WINDOW_TITLE], include_about=True)
         task_menu = self.edge_menu.menus['任务']
         task_menu.addAction('会话摘要与删除进度…', self.show_retired_sessions)
+        task_menu.addAction('项目分组与同步…', self.open_project_settings)
         task_menu.aboutToShow.connect(self.refresh_task_menu)
 
     def refresh_task_menu(self):
-        attach, pause, resume, review, _details, retirements = self.edge_menu.menus['任务'].actions()
+        attach, pause, resume, review, _details, retirements, _groups = self.edge_menu.menus['任务'].actions()
         for action, key in zip((attach, pause, resume), ('attach', 'pause', 'resume')):
             action.setEnabled(self.workspace_pages.currentWidget() is self.task_workspace
                               and self.action_buttons[key].isEnabled())
@@ -1448,6 +1457,11 @@ class MainWindow(QMainWindow):
         if tid:
             self.change_task(self.client, tid)
             self.render_selection(self._last_snapshot)
+            self.schedule_local_project()
+
+    def clicked_task(self, item, _column):
+        if item.data(0, Qt.ItemDataRole.UserRole) == self.selected_thread:
+            self.schedule_local_project()
 
     def change_task(self, client, tid):
         previous = (self.client, self.selected_thread)
@@ -1478,11 +1492,11 @@ class MainWindow(QMainWindow):
 
     def expand_project(self, item):
         if not self.task_search.text().strip():
-            self.collapsed_projects[self.client].discard(item.data(0, TASK_DIRECTORY_ROLE))
+            self.collapsed_projects[self.client].discard(item.data(0, PROJECT_CATEGORY_ROLE) or item.data(0, TASK_DIRECTORY_ROLE))
 
     def collapse_project(self, item):
         if not self.task_search.text().strip():
-            self.collapsed_projects[self.client].add(item.data(0, TASK_DIRECTORY_ROLE))
+            self.collapsed_projects[self.client].add(item.data(0, PROJECT_CATEGORY_ROLE) or item.data(0, TASK_DIRECTORY_ROLE))
 
     def filter_tasks(self):
         query = self.task_search.text().strip().casefold()
@@ -1490,16 +1504,20 @@ class MainWindow(QMainWindow):
         with QSignalBlocker(self.task_choice):
             for key, group in self.project_items.items():
                 group_matches = 0
+                category = group.parent().text(0).casefold() if group.parent() is not None else ''
                 for row in range(group.childCount()):
                     item = group.child(row)
                     visible = (query in item.data(0, TASK_TITLE_ROLE).casefold()
                                or query in (item.data(0, TASK_DIRECTORY_ROLE) or '').casefold()
-                               or query in group.text(0).casefold())
+                               or query in group.text(0).casefold() or query in category)
                     item.setHidden(not visible)
                     group_matches += int(visible)
                 group.setHidden(group_matches == 0)
                 group.setExpanded(bool(query) or key not in self.collapsed_projects[self.client])
                 matches += group_matches
+            for key, category in self.category_items.items():
+                category.setHidden(all(category.child(i).isHidden() for i in range(category.childCount())))
+                category.setExpanded(bool(query) or key not in self.collapsed_projects[self.client])
         self.task_empty.setText('案头未见这一件，换个词再寻。' if query else '案头暂空，待写新篇。')
         self.task_empty.setVisible(matches == 0)
 
@@ -1570,6 +1588,11 @@ class MainWindow(QMainWindow):
                           if row['id'].startswith(ENTRY_PREFIX))
         boundary = configured_root(monitor.ROOT)
         groups = {directory: project_group(directory, roots, boundary) for _, directory in projects.values()}
+        configured = {project: (row['id'], row['name']) for row in self._project_sync_view.get('projectGroups', [])
+                      for project in row['projects']}
+        priorities = self._project_sync_view.get('projectPolicies', {})
+        group_settings = {group[0]: (configured.get(project), priorities.get(project)) for group in groups.values()
+                          if (project := self.project_sync_id(group[2], boundary)) in configured or project in priorities}
         projects_by_name = {}
         for group in groups.values():
             projects_by_name.setdefault(group[1].casefold(), set()).add(group)
@@ -1589,11 +1612,11 @@ class MainWindow(QMainWindow):
                 caption = {'active': '行舟中', 'systemError': '执行异常'}.get(status, '已执舟')
             group = groups[directory]
             model_label = self.organizer.label('task:' + self.client, tid)
-            if model_label and model_label.casefold() != group[1].casefold():
+            if group[0] not in group_settings and model_label and model_label.casefold() != group[1].casefold():
                 matching = projects_by_name.get(model_label.casefold(), ())
                 group = next(iter(matching)) if len(matching) == 1 else ('model:' + model_label, model_label, '')
             rows.append((tid, title, caption, directory, group))
-        signature = (self.client, rows)
+        signature = (self.client, rows, group_settings)
         if signature != self._task_signature:
             previous_scroll = self.task_choice.verticalScrollBar().value()
             self._task_signature = signature
@@ -1601,18 +1624,32 @@ class MainWindow(QMainWindow):
             with QSignalBlocker(self.task_choice):
                 self.task_items.clear()
                 self.project_items.clear()
+                self.category_items.clear()
                 self.task_choice.clear()
                 seen_titles = {}
                 for tid, title, caption, directory, (key, group_name, workspace) in rows:
                     group = self.project_items.get(key)
                     if group is None:
+                        category, policy = group_settings.get(key, (None, None))
+                        parent = self.task_choice
+                        if category:
+                            category_id, category_name = category
+                            category_key = 'category:' + category_id
+                            if category_key not in self.category_items:
+                                heading = QTreeWidgetItem(self.task_choice, [category_name])
+                                heading.setFont(0, ui_font(11, True))
+                                heading.setData(0, PROJECT_CATEGORY_ROLE, category_key)
+                                heading.setFlags(heading.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                                self.category_items[category_key] = heading
+                            parent = self.category_items[category_key]
                         qualifier = folder_name(str(Path(workspace).parent)) if workspace else ''
                         caption_name = (f'{group_name} · {qualifier}' if qualifier and group_names[group_name.casefold()] > 1
                                         else group_name)
-                        group = QTreeWidgetItem(self.task_choice, [caption_name])
+                        group = QTreeWidgetItem(parent, [caption_name])
                         group.setFont(0, ui_font(10, True))
                         group.setData(0, TASK_DIRECTORY_ROLE, key)
-                        group.setToolTip(0, workspace)
+                        label = dict(POLICIES).get(policy, '') if policy else ''
+                        group.setToolTip(0, '\n'.join(filter(None, (workspace, label))))
                         self.project_items[key] = group
                     title_key = key, title.casefold()
                     seen_titles[title_key] = seen_titles.get(title_key, 0) + 1
@@ -1691,8 +1728,10 @@ class MainWindow(QMainWindow):
         if self.notebook is not None and self.workspace_pages.currentWidget() is self.notebook:
             self.notebook.refresh_day()
         flow = monitor.personal_sync
+        self._project_sync_view = self.local_project_settings.snapshot() if flow is None else {}
         if flow:
             view = flow.snapshot()
+            self._project_sync_view = view
             revision = view.get('notebookRevision', 0)
             if self.notebook is not None and revision != self._notebook_revision and self.notebook.refresh_synced():
                 self._notebook_revision = revision
@@ -1798,10 +1837,69 @@ class MainWindow(QMainWindow):
             self.operate('rename', title, tid=target[1])
 
     def open_project(self):
-        if self._sync_project:
+        if self.has_local_project():
+            blocked = self.project_occupancy_message(project=self._sync_project) if self._sync_project else None
+            if blocked:
+                self.control_message.setText(blocked)
+                return
+            self.launch_project(self._project_directory)
+            self.schedule_local_project()
+        elif self._sync_project:
             self.request_project(self._sync_project)
         else:
             self.launch_project(self._project_directory)
+
+    def schedule_local_project(self):
+        flow = monitor.personal_sync
+        if not flow or not self.has_local_project():
+            return
+        project = self._sync_project
+        if project is None:
+            boundary = configured_root(monitor.ROOT)
+            _key, _title, workspace = project_group(str(self._project_directory), boundary=boundary)
+            project = self.project_sync_id(workspace, boundary)
+        if project:
+            flow.request_after_open(project)
+
+    def has_local_project(self):
+        directory, project = self._project_directory, self._sync_project
+        return bool(directory and directory.is_dir() and not (
+            project and project.startswith('.folder/') and receiver_placeholder(directory, project)))
+
+    def project_sync_id(self, workspace, boundary):
+        if not workspace or not Path(workspace).is_absolute():
+            return None
+        path = Path(workspace)
+        for key in ('folderProjects', 'projects'):
+            mappings = self._project_sync_view.get(key, {})
+            matches = [(len(Path(root).parts), name) for name, root in mappings.items() if path.is_relative_to(root)]
+            if matches:
+                return max(matches)[1]
+        if boundary and path.is_relative_to(boundary):
+            return folder_id(path.relative_to(boundary).as_posix())
+        return folder_id(str(path))
+
+    def open_project_settings(self):
+        settings = monitor.personal_sync or self.local_project_settings
+        boundary = configured_root(monitor.ROOT)
+        projects = {}
+        for key in ('projects', 'folderProjects'):
+            for name, workspace in self._project_sync_view.get(key, {}).items():
+                project = self.project_sync_id(workspace, boundary) or name
+                projects[project] = folder_name(workspace) or name, workspace
+        roots = frozenset(Path(row['cwd']) for row in self._last_snapshot.get('indexedProjects', [])
+                          if row['id'].startswith(ENTRY_PREFIX))
+        for _title, directory in self.all_tasks(self._last_snapshot).values():
+            _key, label, workspace = project_group(directory, roots, boundary)
+            if project := self.project_sync_id(workspace, boundary):
+                projects.setdefault(project, (label, workspace))
+        projects = dict(sorted(projects.items(), key=lambda row: row[1][0].casefold()))
+        dialog = ProjectSyncDialog(self, settings, projects)
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.refresh()
+        finally:
+            dialog.deleteLater()
 
     def request_project(self, project):
         blocked = self.project_occupancy_message(project=project)
