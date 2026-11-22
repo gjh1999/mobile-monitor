@@ -8,6 +8,7 @@ from automation import Approvals, Scheduler
 from rpc_client import RPC, RPCError
 from task_control import TaskControl
 from rpc_errors import RPCNotSent
+from tray_release import TrayRelease
 
 
 class FakeRPC:
@@ -40,6 +41,64 @@ class Tests(unittest.TestCase):
    status.refresh(rpc,status.generation)
    self.assertEqual(monitor.state['threads'],threads)
    self.assertEqual(monitor.state['threadStatus'],'unavailable')
+
+ def test_manual_send_wakes_poll_during_slow_quota_and_list_queries(self):
+  thread='11111111-2222-4333-8444-555555555555'
+  quota_entered=threading.Event();list_entered=threading.Event()
+  release_quota=threading.Event();release_list=threading.Event()
+  first_sent=threading.Event();second_sent=threading.Event()
+  stop=threading.Event()
+
+  class SlowStatus:
+   closed=False
+   owned_threads=set()
+   project_writes=None
+
+   def call(self,method,params,timeout=20):
+    if method=='account/rateLimits/read':
+     quota_entered.set();release_quota.wait(5)
+     raise TimeoutError()
+    if method=='thread/list':
+     list_entered.set();release_list.wait(5)
+     return {'data':[]}
+    if method in ('thread/resume','thread/read'):
+     return {'thread':{'id':thread,'status':{'type':'idle'}}}
+    if method=='turn/start':
+     if not params['_sendGuard']():raise RPCError(detail='control stopped')
+     (first_sent if params['clientUserMessageId']=='during-quota' else second_sent).set()
+    return {}
+
+   def close(self):
+    self.closed=True
+
+  with tempfile.TemporaryDirectory() as directory, \
+       patch.object(monitor,'ROOT',Path(directory)), \
+       patch.object(monitor,'_workspace',Path(directory)), \
+       patch.object(monitor,'config',return_value={'autoAttachThreads':[thread]}), \
+       patch.object(monitor,'RPC',return_value=SlowStatus()), \
+       patch.object(monitor,'tray_release',TrayRelease()), \
+       patch.object(monitor,'controller',None), \
+       patch.object(monitor,'history_labels',{'test':{}}), \
+       patch.object(monitor,'state',copy.deepcopy(monitor.state)), \
+       patch.dict('os.environ',{'DINGTALK_WEBHOOK':'','DINGTALK_SIGNING_SECRET':''}):
+   worker=threading.Thread(target=monitor.poll,args=(stop,))
+   worker.start()
+   try:
+    self.assertTrue(quota_entered.wait(3))
+    control=monitor.get_controller()
+    control.submit(thread,'message','first','during-quota')
+    self.assertTrue(first_sent.wait(1.5))
+    self.assertFalse(release_quota.is_set())
+    release_quota.set()
+    self.assertTrue(list_entered.wait(3))
+    control.submit(thread,'message','second','during-list')
+    self.assertTrue(second_sent.wait(1.5))
+    self.assertFalse(release_list.is_set())
+   finally:
+    stop.set();release_quota.set();release_list.set()
+    monitor.tray_release.signal('codex')
+    worker.join(3)
+   self.assertFalse(worker.is_alive())
 
  def rpc(self):
   rpc = RPC.__new__(RPC);rpc.approvals = Approvals();rpc.lock = threading.Lock();rpc.pending = {};rpc.closed = False

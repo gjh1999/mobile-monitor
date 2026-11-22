@@ -57,7 +57,7 @@ class UniversalRPC:
             raise
 
     @staticmethod
-    def _find_process(executable_name: str, env_var: Optional[str] = None, *, arguments=None):
+    def _find_process(executable_name: str, env_var: Optional[str] = None, *, arguments=None, env=None):
         """Locate and launch the executable."""
         exe = None
 
@@ -96,6 +96,7 @@ class UniversalRPC:
             text=True,
             encoding='utf-8',
             bufsize=1,
+            env=env,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         )
         return process

@@ -295,7 +295,83 @@ def install_history(home, filename, tid, data, backups):
             replace(path, prior, data, backups, limit=MAX_FILE)
 
 
-def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, git_projects=None):
+def _saved_session_id(path):
+    with path.open("rb") as stream:
+        head = json.loads(stream.readline(MAX_RECORD))
+        if not isinstance(head, dict):
+            return None
+        if set(head) == {"name", "cwd"}:
+            head = json.loads(stream.readline(262144))
+        if isinstance(head, dict) and head.get("type") == "session_meta":
+            payload = head.get("payload")
+            return payload.get("id") if isinstance(payload, dict) else None
+        return head.get("thread_id") if isinstance(head, dict) and set(head) == set(MEMORY_FIELDS) else None
+
+
+def purge_session_copies(mirror, home, projects, tid, *, source_keys=()):
+    """Clear app-managed replicas and recognizable backups for one retired UUID."""
+    if str(uuid.UUID(tid)) != tid:
+        raise ValueError("会话 ID 无效")
+    suffix = f"-{tid}.jsonl"
+    part_keys = set(source_keys)
+    for project, (root, subdir) in projects.items():
+        if not root.is_dir():
+            continue
+        root = safe_path(root, subdir)
+        folder = safe_path(root, ".lanxi/sessions")
+        for entry in folder.glob(f"rollout-*{suffix}"):
+            session_location(entry.name, tid)
+            path = safe_path(folder, entry.name)
+            if _saved_session_id(path) != tid:
+                raise ValueError("本机会话副本标识不匹配")
+            part_keys.add(MANIFESTS + project + "/" + entry.name)
+            path.unlink()
+        row = safe_path(root, f".lanxi/long-term/{tid}.json")
+        if row.exists():
+            if _saved_session_id(row) != tid:
+                raise ValueError("本机长期记忆标识不匹配")
+            row.unlink()
+
+    for key, in mirror.db.execute("SELECT key FROM local_file WHERE key LIKE ?", (f"sessions/%{suffix}",)):
+        part_keys.add(manifest_key(key))
+    for key in part_keys:
+        scratch = safe_path(mirror.backups.parent, "parts/" + digest(key.encode())[:16])
+        for path in scratch.iterdir() if scratch.is_dir() else ():
+            if re.fullmatch(r"[a-f0-9]{24}", path.name):
+                part = safe_path(scratch, path.name)
+                if part.is_file():
+                    part.unlink()
+
+    native_backups = safe_path(home, f"lanxi-handoff-backups/{tid}")
+    backup_roots = ((mirror.backups, r"[a-f0-9]{64}"), (native_backups, r"[a-f0-9]{64}\.jsonl"))
+    for folder, pattern in backup_roots:
+        if folder.is_symlink():
+            raise ValueError("本机会话备份路径包含链接")
+        for path in folder.iterdir() if folder.is_dir() else ():
+            if not re.fullmatch(pattern, path.name):
+                continue
+            path = safe_path(folder, path.name)
+            if not path.is_file():
+                continue
+            try:
+                owner = _saved_session_id(path)
+            except ValueError:
+                continue  # This shared backup directory also contains unrelated notes.
+            if owner == tid:
+                path.unlink()
+
+    memdb = safe_path(home, "memories_1.sqlite")
+    if memdb.is_file():
+        with closing(sqlite3.connect(memdb, timeout=1)) as db, db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='stage1_outputs'").fetchone():
+                db.execute("DELETE FROM stage1_outputs WHERE thread_id=?", (tid,))
+    with mirror.db:
+        mirror.db.execute("DELETE FROM local_file WHERE key LIKE ? OR key LIKE ?",
+                          (f"sessions/%{suffix}", f"long-term/%/{tid}"))
+        mirror.db.execute("DELETE FROM native_memory WHERE key LIKE ?", (f"long-term/%/{tid}",))
+
+
+def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, git_projects=None, retired=()):
     """Keep native sessions under their stable identity and notes under their Git repository."""
 
     def attempt(key, fn, *args):
@@ -334,7 +410,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
         tid = path.stem[-36:]
         stamp = None
         try:
-            if str(uuid.UUID(tid)) != tid:
+            if str(uuid.UUID(tid)) != tid or tid in retired:
                 continue
             path = safe_path(home, path.relative_to(home).as_posix())
             statinfo = path.stat()
@@ -423,6 +499,8 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
                     session_location(filename, tid)
                     if str(uuid.UUID(tid)) != tid:
                         raise ValueError("会话 ID 无效")
+                    if tid in retired:
+                        return
                     envelope = safe_path(folder, filename)
                     if (index.get(manifests + filename, EMPTY) != EMPTY
                             or envelope.is_file() and envelope.stat().st_size >= MAX_RECORD):
@@ -469,7 +547,7 @@ def sync_memories(mirror, index, home, projects, poll_cache, report, stop, *, gi
             row_prefix = "long-term/" + project + "/"
             known = {tid for tid, owner in thread_projects.items() if owner == session_owner.get(root)}
             known.update(k[len(row_prefix) :] for k in index if k.startswith(row_prefix))
-            for tid in known:
+            for tid in known.difference(retired):
                 if stop.is_set():
                     return sessions
 
