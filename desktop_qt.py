@@ -583,6 +583,10 @@ class Composer(QTextEdit):
         self._composing = bool(event.preeditString())
         super().inputMethodEvent(event)
 
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self._composing = False
+
     def keyPressEvent(self, event):
         enter = event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
         if enter and self._composing:
@@ -1859,6 +1863,10 @@ class MainWindow(QMainWindow):
                 caption = '暂泊中' if self.client == 'claude' and status == 'active' else '已暂泊 · 待续航'
             else:
                 caption = {'active': '行舟中', 'systemError': '执行异常'}.get(status, '已执舟')
+            title_sync = (controls.get('titleSync') or {}).get(tid) if self.client == 'codex' else None
+            if title_sync or (self.client, tid) in self._optimistic_titles:
+                caption += ' · ' + ('标题冲突' if title_sync and title_sync.get('state') == 'conflict'
+                                    and (self.client, tid) not in self._optimistic_titles else '标题待同步')
             group = groups[directory]
             model_label = self.organizer.label('task:' + self.client, tid)
             if group[0] not in group_settings and model_label and model_label.casefold() != group[1].casefold():
@@ -2498,7 +2506,7 @@ class MainWindow(QMainWindow):
         matched = self._matched_messages.setdefault(key, set())
         counts = Counter()
         for message in messages:
-            if message['role'] != 'user':
+            if message.get('role') != 'user':
                 continue
             turn, message_id = message.get('turnId'), message.get('id')
             stamp = message.get('time', 0)
