@@ -1140,6 +1140,8 @@ class MainWindow(QMainWindow):
         dialog = WallpaperDialog(self, backdrop)
         try:
             dialog.exec()
+            if dialog.transfer_completed and (item := self.task_items.get(target)) is not None:
+                self.task_choice.setCurrentItem(item)
         finally:
             dialog.deleteLater()
 

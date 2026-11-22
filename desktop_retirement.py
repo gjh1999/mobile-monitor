@@ -15,6 +15,7 @@ class RetirementDialog(QDialog):
         super().__init__(parent)
         self.flow, self.tid = flow, tid
         self.target, self.target_title, self.controller = target, target_title, controller
+        self.transfer_completed = False
         self.stop = threading.Event()
         self.job = None
         self.version = None
@@ -107,6 +108,7 @@ class RetirementDialog(QDialog):
 
     def published(self, path):
         self.version = None
+        self.transfer_completed = self.target is not None
         result = '摘要已转入目标会话。' if self.target else ''
         self.status.setText(f'{result}摘要已保存至 {path}。服务器已接受删除，等待设备回执。')
         self.generate.hide()
