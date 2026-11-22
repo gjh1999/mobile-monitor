@@ -8,7 +8,9 @@ Windows 原生桌面软件，用于集中查看和控制本机 Codex / Claude Co
 
 新 Windows 电脑可直接双击从发布机复制的 `release/笔记本下载/下载澜汐最新版.cmd`，自动加入私人工作区并下载最新版 ZIP。 [新电脑安装说明](docs/PORTABLE_CHECK.md#在另一台-windows-电脑使用)
 
-本机 `release/` 根目录保留当前稳定版 `Lanxi-R45-Windows-Private.zip` 和开发版 `Lanxi.exe`。`release/history/` 另存最近两个被替换的稳定版 ZIP，供回滚使用。 [发布目录维护](docs/RUNBOOK.md#构建-exe)
+本机 `release/` 根目录保留当前稳定版 `Lanxi-R46-Windows-Private.zip` 和开发版 `Lanxi.exe`。`release/history/` 另存最近两个被替换的稳定版 ZIP，供回滚使用。 [发布目录维护](docs/RUNBOOK.md#构建-exe)
+
+R46 将额度和列表查询移出人工发送路径，增加会话摘要存档与跨机删除。 [桌面操作](docs/DESKTOP.md#压缩并删除-codex-会话)
 
 R44 在 Codex 连接恢复后发送可确认尚未写入的指令。Codex 正文和执行札记各自保留，连续命令也可回看用户输入。 [桌面说明](docs/DESKTOP.md)
 
