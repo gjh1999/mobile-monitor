@@ -40,6 +40,7 @@ from desktop_poetry import COVER_VERSES
 from desktop_wallpapers import WallpaperDialog
 from desktop_projects import SessionTitles, folder_name, project_group
 from desktop_project_sync import POLICIES, ProjectSyncDialog
+from desktop_project_intro import ProjectIntroPage, WorkspaceSplitter
 from desktop_retirement import RetirementDialog
 from desktop_theme import (
     SLASH_MENU_STYLE, STYLESHEET, configure_text, format_reading_document, insert_markdown,
@@ -50,6 +51,7 @@ from model_groups import Organizer
 from portable_update import VERSION
 from plain_projects import folder_id, receiver_placeholder
 from project_sync_policy import ProjectSyncSettings
+from project_intro import ProjectIntroStore
 from project_library import ENTRY_PREFIX, configured_root, set_project_root
 from rpc_errors import RPCError
 
@@ -58,6 +60,7 @@ WINDOW_TITLE = '澜汐'
 TASK_TITLE_ROLE = Qt.ItemDataRole.UserRole + 1
 TASK_DIRECTORY_ROLE = Qt.ItemDataRole.UserRole + 2
 PROJECT_CATEGORY_ROLE = Qt.ItemDataRole.UserRole + 3
+PROJECT_WORKSPACE_ROLE = Qt.ItemDataRole.UserRole + 4
 UUID_PATTERN = re.compile(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b')
 
 
@@ -686,6 +689,7 @@ class MainWindow(QMainWindow):
         self.project_items = {}
         self.category_items = {}
         self._project_sync_view = {}
+        self._project_intro_group = None
         self.local_project_settings = ProjectSyncSettings(monitor.ROOT)
         self.task_items = {}
         self.collapsed_projects = {'codex': set(), 'claude': set()}
@@ -837,9 +841,11 @@ class MainWindow(QMainWindow):
         page.addWidget(self.workspace_pages, 1)
         middle = QHBoxLayout(self.task_workspace)
         middle.setContentsMargins(0, 0, 0, 0)
-        middle.setSpacing(7)
+        self.workspace_splitter = WorkspaceSplitter(monitor.ROOT)
+        middle.addWidget(self.workspace_splitter)
         self.task_panel = FrostedPanel(root)
-        self.task_panel.setFixedWidth(266)
+        self.task_panel.setMinimumWidth(180)
+        self.task_panel.setMaximumWidth(640)
         side = QVBoxLayout(self.task_panel)
         side.setContentsMargins(13, 12, 13, 10)
         side.setSpacing(8)
@@ -886,7 +892,7 @@ class MainWindow(QMainWindow):
         self.live = label('○ 正在连接', 9, color=MUTED)
         self.live.setObjectName('status')
         side.addWidget(self.live)
-        middle.addWidget(self.task_panel)
+        self.workspace_splitter.addWidget(self.task_panel)
 
         self.conversation_card = FrostedPanel(root)
         conversation_layout = QVBoxLayout(self.conversation_card)
@@ -970,7 +976,18 @@ class MainWindow(QMainWindow):
         conversation_layout.addWidget(composer_box)
         self.control_message = label('', 8.5, color=MUTED)
         conversation_layout.addWidget(self.control_message)
-        middle.addWidget(self.conversation_card, 1)
+        self.task_detail_pages = QStackedWidget()
+        self.task_detail_pages.addWidget(self.conversation_card)
+        self.project_intro_card = FrostedPanel(root)
+        intro_layout = QVBoxLayout(self.project_intro_card)
+        intro_layout.setContentsMargins(0, 0, 0, 0)
+        self.project_intro = ProjectIntroPage(ProjectIntroStore(monitor.ROOT))
+        intro_layout.addWidget(self.project_intro)
+        self.task_detail_pages.addWidget(self.project_intro_card)
+        self.workspace_splitter.addWidget(self.task_detail_pages)
+        self.workspace_splitter.setStretchFactor(0, 0)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.restore_width(self.width() - page.contentsMargins().left() - page.contentsMargins().right())
         task_header_area.addSpacing(conversation_caption.sizeHint().height() + conversation_title.spacing())
         task_heading.setFixedHeight(self.title_stack.sizeHint().height())
         task_header_area.addLayout(task_header)
@@ -1010,6 +1027,7 @@ class MainWindow(QMainWindow):
         attach, pause, resume, review, _details, retirements, _groups = self.edge_menu.menus['任务'].actions()
         for action, key in zip((attach, pause, resume), ('attach', 'pause', 'resume')):
             action.setEnabled(self.workspace_pages.currentWidget() is self.task_workspace
+                              and self.task_detail_pages.currentWidget() is self.conversation_card
                               and self.action_buttons[key].isEnabled())
         review.setEnabled(bool(self._pending_approvals or self._approval_feedback or self._approval_sending))
         retirements.setEnabled(monitor.personal_sync is not None)
@@ -1392,6 +1410,8 @@ class MainWindow(QMainWindow):
         self._quitting = True
         if self.notebook is not None:
             self.notebook.flush()
+        self.project_intro.flush()
+        self.workspace_splitter.flush()
         self.stop.set()
         self.organizer.close()
         self.timer.stop()
@@ -1455,9 +1475,32 @@ class MainWindow(QMainWindow):
     def select_task(self, current, _previous):
         tid = current.data(0, Qt.ItemDataRole.UserRole) if current else None
         if tid:
+            self.show_conversation_page()
             self.change_task(self.client, tid)
             self.render_selection(self._last_snapshot)
             self.schedule_local_project()
+        elif current is not None and current.data(0, PROJECT_WORKSPACE_ROLE):
+            self.show_project_intro(current, schedule=True)
+
+    def show_project_intro(self, item, *, schedule=False):
+        workspace = item.data(0, PROJECT_WORKSPACE_ROLE)
+        path = Path(workspace)
+        boundary = configured_root(monitor.ROOT)
+        relative = path.relative_to(boundary) if boundary and path.is_relative_to(boundary) else path
+        self._project_intro_group = item.data(0, TASK_DIRECTORY_ROLE)
+        self.cancel_rename()
+        self.project_intro.show_project(folder_id(relative.as_posix()), item.text(0), workspace)
+        self.task_detail_pages.setCurrentWidget(self.project_intro_card)
+        if schedule and monitor.personal_sync and path.is_dir():
+            project = self.project_sync_id(workspace, boundary)
+            if project and not (project.startswith('.folder/') and receiver_placeholder(path, project)):
+                monitor.personal_sync.request_after_open(project)
+
+    def show_conversation_page(self):
+        if self._project_intro_group is not None:
+            self._project_intro_group = None
+            self.project_intro.flush()
+            self.task_detail_pages.setCurrentWidget(self.conversation_card)
 
     def clicked_task(self, item, _column):
         if item.data(0, Qt.ItemDataRole.UserRole) == self.selected_thread:
@@ -1648,6 +1691,8 @@ class MainWindow(QMainWindow):
                         group = QTreeWidgetItem(parent, [caption_name])
                         group.setFont(0, ui_font(10, True))
                         group.setData(0, TASK_DIRECTORY_ROLE, key)
+                        if workspace and Path(workspace).is_absolute():
+                            group.setData(0, PROJECT_WORKSPACE_ROLE, workspace)
                         label = dict(POLICIES).get(policy, '') if policy else ''
                         group.setToolTip(0, '\n'.join(filter(None, (workspace, label))))
                         self.project_items[key] = group
@@ -1665,6 +1710,14 @@ class MainWindow(QMainWindow):
             self.task_choice.verticalScrollBar().setValue(previous_scroll)
         if self.selected_thread not in self.task_items:
             self.change_task(self.client, next(iter(self.task_items), ''))
+        if self._project_intro_group is not None:
+            header = self.project_items.get(self._project_intro_group)
+            if header is not None and header.data(0, PROJECT_WORKSPACE_ROLE):
+                if self.task_choice.currentItem() is None:
+                    with QSignalBlocker(self.task_choice):
+                        self.task_choice.setCurrentItem(header)
+                return
+            self.show_conversation_page()
         item = self.task_items.get(self.selected_thread)
         if self.task_choice.currentItem() is None and item is not None and item.parent().isExpanded():
             with QSignalBlocker(self.task_choice):
@@ -1698,6 +1751,7 @@ class MainWindow(QMainWindow):
         if client == self.client:
             self.client_switch.select(client)
             return
+        self.show_conversation_page()
         self.client_selections[self.client] = self.selected_thread
         self.change_task(client, self.client_selections[client])
         self.client_switch.select(client)
@@ -1809,7 +1863,8 @@ class MainWindow(QMainWindow):
             if mapping:
                 self._sync_project,self._project_directory = mapping
         self.render_controls(snap)
-        self.refresh_conversation()
+        if self._project_intro_group is None:
+            self.refresh_conversation()
 
     def begin_rename(self):
         if not self.selected_thread or self.selected_thread.startswith(ENTRY_PREFIX):
@@ -2357,7 +2412,7 @@ class MainWindow(QMainWindow):
 
     def refresh_activity(self):
         thread = self.selected_thread
-        if (self.client != 'codex' or not thread or thread.startswith(ENTRY_PREFIX)
+        if (self.client != 'codex' or self._project_intro_group is not None or not thread or thread.startswith(ENTRY_PREFIX)
                 or not self.task_workspace.isVisible()):
             return
         key = thread, monitor.codex_activity.revision(thread)
@@ -2481,6 +2536,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             if self.notebook is not None and not self.notebook.flush():
                 return
+            self.project_intro.flush()
             if self._tray_hidden:
                 return
             self._tray_hidden = True
