@@ -39,6 +39,7 @@ from desktop_pairing import CONNECT_CLOUD, PairingDialog, WorkspaceConnectDialog
 from desktop_poetry import COVER_VERSES
 from desktop_wallpapers import WallpaperDialog
 from desktop_projects import SessionTitles, folder_name, project_group
+from desktop_retirement import RetirementDialog
 from desktop_theme import (
     SLASH_MENU_STYLE, STYLESHEET, configure_text, format_reading_document, insert_markdown,
     message_html, process_html, ui_font, warning_html, web_link,
@@ -993,14 +994,16 @@ class MainWindow(QMainWindow):
         ])
         self.populate_app_menu(self.edge_menu.menus[WINDOW_TITLE], include_about=True)
         task_menu = self.edge_menu.menus['任务']
+        task_menu.addAction('会话摘要与删除进度…', self.show_retired_sessions)
         task_menu.aboutToShow.connect(self.refresh_task_menu)
 
     def refresh_task_menu(self):
-        attach, pause, resume, review, _details = self.edge_menu.menus['任务'].actions()
+        attach, pause, resume, review, _details, retirements = self.edge_menu.menus['任务'].actions()
         for action, key in zip((attach, pause, resume), ('attach', 'pause', 'resume')):
             action.setEnabled(self.workspace_pages.currentWidget() is self.task_workspace
                               and self.action_buttons[key].isEnabled())
         review.setEnabled(bool(self._pending_approvals or self._approval_feedback or self._approval_sending))
+        retirements.setEnabled(monitor.personal_sync is not None)
 
     def about_lanxi(self):
         self._popup('关于澜汐', f'澜汐 R{VERSION} · 开发工作台\n一处开始，处处继续。')
@@ -1517,8 +1520,32 @@ class MainWindow(QMainWindow):
                 menu.addAction('打开项目记忆目录', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(entry['memory'])))
         else:
             menu.addAction('查看会话 ID', lambda: self.show_session_id(thread))
+            if monitor.personal_sync:
+                title = item.data(0, TASK_TITLE_ROLE)
+                menu.addAction('压缩并删除会话…', lambda: self.open_retirement(thread, title))
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.task_choice.viewport().mapToGlobal(position))
+
+    def open_retirement(self, thread, title):
+        flow = monitor.personal_sync
+        if flow is None:
+            return
+        dialog = RetirementDialog(self, flow, thread, title)
+        try:
+            dialog.exec()
+        finally:
+            dialog.deleteLater()
+
+    def show_retired_sessions(self):
+        flow = monitor.personal_sync
+        if flow is None:
+            return
+        rows = flow.snapshot().get('retirements', {})
+        text = []
+        for thread, row in rows.items():
+            devices = '、'.join(row['acknowledged']) or '等待设备回执'
+            text.append(f'{row.get("document") or thread}\n{row["status"]}\n设备回执 · {devices}')
+        self._popup('会话摘要与删除进度', '\n\n'.join(text) or '暂无待处理或已删除的会话。')
 
     def show_session_id(self, thread):
         dialog = QMessageBox(self)
@@ -1673,7 +1700,7 @@ class MainWindow(QMainWindow):
                 threads = {t['id']:t for t in snap.get('threads',[])}
                 for tid, session in view['sessions'].items():
                     threads[tid] = {**threads.get(tid,{'id':tid,'title':'跨机会话 · '+session['project']}),'cwd':session['cwd']}
-                snap['threads'] = list(threads.values())
+                snap['threads'] = [row for tid, row in threads.items() if tid not in view.get('retirements', {})]
             if self._pending_open:
                 project, epoch = self._pending_open
                 paths = {**view['projects'], **view.get('folderProjects', {})}

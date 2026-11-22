@@ -4,10 +4,12 @@ import hashlib
 import json
 import os
 import queue
+import re
 import sqlite3
 import subprocess
 import threading
 import time
+import uuid
 from concurrent.futures import Future
 from pathlib import Path
 
@@ -24,10 +26,33 @@ from code_sync import (
 from coordination_client import ControlClient, ControlDenied, PersonalTaskLocks, device_token
 from handoff import native_publication_lock
 from handoff_sync import atomic_write
-from personal_memory import Mirror, confirm_published_session, pack, read_transcript, safe_path, sync_memories
-from personal_relay import EMPTY, Records, RemoteRecords, digest
+from personal_memory import (
+    Mirror, confirm_published_session, pack, purge_session_copies, read, read_transcript, replace, safe_path, sync_memories,
+)
+from personal_relay import (
+    EMPTY, RETIREMENT_ACK_PREFIX, RETIREMENT_PREFIX, RETIREMENT_SOURCES_PREFIX, Changed, Records, RemoteRecords,
+    digest, retirement_markdown,
+)
 from plain_projects import folder_bindings, folder_id, folder_index
 from project_library import configured_root, discover
+from rpc_errors import RPCError
+
+
+def save_retirement_summary(root, tid, markdown, expected_sha):
+    if str(uuid.UUID(tid)) != tid or not isinstance(markdown, str):
+        raise ValueError("会话摘要标识无效")
+    data = markdown.encode("utf-8")
+    if not markdown.strip() or len(data) > 64 * 1024 or digest(data) != expected_sha:
+        raise ValueError("会话摘要内容或校验值无效")
+    path = safe_path(root, f"会话摘要/{tid}.md")
+    previous = read(path, limit=64 * 1024)
+    if previous is None:
+        replace(path, None, data, None, limit=64 * 1024)
+    elif previous != data:
+        raise Changed("同名会话摘要与服务器内容不同，已保留本机文档")
+    if read(path, limit=64 * 1024) != data:
+        raise Changed("会话摘要保存后校验失败")
+    return path
 
 
 class PersonalSync:
@@ -69,6 +94,9 @@ class PersonalSync:
         self.large_inventory = {}
         self.large_available = {}
         self.file_exchange = None
+        self.retirements = {}
+        self.retirement_supported = False
+        self.retirement_delete = None
 
     def store(self):
         if self.settings.get("codeOnly"):
@@ -100,7 +128,108 @@ class PersonalSync:
                 "notebookRevision": self.notebook_revision,
                 "largeInventory": dict(self.large_inventory),
                 "largeAvailable": dict(self.large_available),
+                "retirements": {tid: dict(row) for tid, row in self.retirements.items()},
+                "retirementSupported": self.retirement_supported,
             }
+
+    def _prepare_retirements(self, store, index, errors, stop):
+        with self.lock:
+            self.retirement_supported = False
+        if not isinstance(store, RemoteRecords) or stop.is_set():
+            return {}, {}
+        try:
+            supported = store.retirement_supported()
+        except (OSError, ValueError):
+            errors["会话摘要"] = "暂时无法核对服务器会话整理能力"
+            return {}, {}
+        if not supported:
+            return {}, {}
+        revisions = {key.removeprefix(RETIREMENT_PREFIX): rev for key, rev in index.items()
+                     if key.startswith(RETIREMENT_PREFIX) and rev != EMPTY}
+        canonical = re.compile(r"[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}")
+        rows = {tid: {"acknowledged": [], "document": None, "status": "本机等待处理"}
+                for tid in revisions if canonical.fullmatch(tid)}
+        ack = pack({"v": 1})
+        ack_digest = digest(ack)
+        device = store.client.device
+        for key, rev in index.items():
+            if key.startswith(RETIREMENT_ACK_PREFIX) and rev == ack_digest:
+                tid, slash, owner = key.removeprefix(RETIREMENT_ACK_PREFIX).partition("/")
+                if tid in rows and slash and owner and "/" not in owner:
+                    rows[tid]["acknowledged"].append(owner)
+
+        pending = {}
+        for tid, row in rows.items():
+            if stop.is_set():
+                break
+            row["acknowledged"].sort()
+            try:
+                path = safe_path(self.root, f"会话摘要/{tid}.md")
+                if device in row["acknowledged"] and path.is_file():
+                    row.update(document=str(path), status="本机已处理")
+                    continue
+                data = store.read(RETIREMENT_PREFIX + tid)
+                if digest(data) != revisions[tid]:
+                    raise Changed("服务器会话整理记录校验失败")
+                markdown = retirement_markdown(data)
+                path = save_retirement_summary(self.root, tid, markdown, digest(markdown.encode("utf-8")))
+                row["document"] = str(path)
+                if device in row["acknowledged"]:
+                    row["status"] = "本机已处理"
+                    continue
+                source_key = RETIREMENT_SOURCES_PREFIX + tid
+                sources = store.read(source_key)
+                if digest(sources) != index.get(source_key, EMPTY):
+                    raise Changed("会话分块清单定位校验失败")
+                part_info = json.loads(sources)
+                directories = part_info.get("partDirectories") if isinstance(part_info, dict) else None
+                if (not isinstance(directories, list) or type(part_info.get("v")) is not int or part_info["v"] != 1
+                        or any(not isinstance(name, str) or not re.fullmatch(r"[a-f0-9]{16}", name) for name in directories)):
+                    raise ValueError("会话分块清单定位无效")
+                delete = self.retirement_delete
+                if delete is None:
+                    from session_retirement import delete_local_session
+                    delete = delete_local_session
+                delete(self.root, self.home, tid)
+                row["status"] = "本机正在清理同步副本"
+                pending[tid] = directories
+            except (OSError, RPCError, ValueError, sqlite3.Error, subprocess.SubprocessError) as error:
+                row["status"] = str(error) if isinstance(error, ValueError) else "本机整理暂未完成，后台将重试"
+                errors.setdefault("会话摘要", row["status"])
+        with self.lock:
+            self.retirement_supported = True
+            self.retirements = rows
+            self.threads = {tid: row for tid, row in self.threads.items() if tid not in rows}
+        return rows, pending
+
+    def _finish_retirements(self, store, rows, pending, projects, errors, stop):
+        if not pending or stop.is_set():
+            return
+        mirror = Mirror(self.local_state, store, self.poll_cache)
+        try:
+            for tid, directories in pending.items():
+                if stop.is_set():
+                    break
+                try:
+                    purge_session_copies(mirror, self.home, projects, tid, part_directories=directories)
+                    device = store.client.device
+                    key = RETIREMENT_ACK_PREFIX + tid + "/" + device
+                    receipt = pack({"v": 1})
+                    try:
+                        store.put(key, EMPTY, receipt)
+                    except Changed:
+                        if store.read(key) != receipt:
+                            raise
+                    with self.lock:
+                        row = rows[tid]
+                        row.update(acknowledged=sorted({*row["acknowledged"], device}), status="本机已处理")
+                except (OSError, ValueError, sqlite3.Error) as error:
+                    status = str(error) if isinstance(error, ValueError) else "本机同步副本暂不可清理，后台将重试"
+                    with self.lock:
+                        rows[tid]["status"] = status
+                    errors.setdefault("会话摘要", status)
+        finally:
+            mirror.db.close()
 
     def reconfigure(self, settings, coordination):
         with self.lock:
@@ -411,6 +540,9 @@ class PersonalSync:
             self.scope = scope
             self.poll_cache.clear()
             self.local_state = self.root / ".local" / "personal-sync" / scope
+            with self.lock:
+                self.retirements = {}
+                self.retirement_supported = False
         self.local_state.mkdir(parents=True, exist_ok=True)
         catalog = self.local_state / "catalog.json"
         preferences = self.local_state / "published.json"
@@ -432,6 +564,7 @@ class PersonalSync:
                 connection = "协调服务暂不可用，后台将重试"
             store = None
             local, specs = self.bindings(None, {}, cached, published, errors, untrusted)
+        retirements, deletion_pending = self._prepare_retirements(store, index, errors, stop)
         if connection == "已连接协调服务":
             self._phase("正在同步随记")
             try:
@@ -546,6 +679,11 @@ class PersonalSync:
                         marker = folder_index(root, project, source=project in sources)
                         if not marker.is_file():
                             atomic_write(marker, pack({}))
+        if deletion_pending:
+            retirement_projects = {project: (path, specs[project]["memoryPath"])
+                                   for project, path in local.items() if project in specs}
+            retirement_projects.update({project: (root, ".lanxi") for project, root in folders.items()})
+            self._finish_retirements(store, retirements, deletion_pending, retirement_projects, errors, stop)
         if check_memory:
 
             def report(key, error):
@@ -560,7 +698,7 @@ class PersonalSync:
                 session_roots = {project: row for project, row in ready.items() if row[0] not in aliased}
                 session_roots.update({project: (root, ".lanxi") for project, root in folders.items()})
                 sessions = sync_memories(mirror, index, self.home, session_roots, self.poll_cache, report, stop,
-                                         git_projects=ready)
+                                         git_projects=ready, retired=retirements)
                 for project, (root, _) in session_roots.items():
                     records = {
                         tid: {"cwd": s["relative"], "updated": s["updated"]}
