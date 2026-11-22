@@ -24,13 +24,13 @@ def hook_home():
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
-def _hook(command):
+def _hook(command, *, timeout=8):
     encoded = base64.b64encode(command.encode("utf-16-le")).decode("ascii")
     return {
         "hooks": [{
             "type": "command",
             "command": COMMAND_PREFIX + encoded,
-            "timeout": 8,
+            "timeout": timeout,
             "statusMessage": STATUS_MESSAGE,
         }]
     }
@@ -40,7 +40,7 @@ def hook_entry(root):
     bundle = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     source = (bundle / "scripts" / "codex-approval-alert.ps1").read_text(encoding="utf-8")
     # A command can run under Restricted without executing a .ps1 file.
-    return _hook(_inbox_header(root) + source)
+    return _hook(_inbox_header(root) + source, timeout=100)
 
 
 def _inbox_header(root):
