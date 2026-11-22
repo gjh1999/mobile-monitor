@@ -147,9 +147,10 @@ class WorkspaceSplitter(QSplitter):
         self.path = root / '.local' / 'desktop-sidebar-width'
         self.setChildrenCollapsible(False)
         self.setHandleWidth(10)
+        self.dirty = False
         self.timer = QTimer(self, interval=300, singleShot=True)
         self.timer.timeout.connect(self.flush)
-        self.splitterMoved.connect(lambda _pos, _index: self.timer.start())
+        self.splitterMoved.connect(self.remember)
 
     def createHandle(self):
         return WorkspaceSplitterHandle(self.orientation(), self)
@@ -161,8 +162,12 @@ class WorkspaceSplitter(QSplitter):
             width = 266
         self.setSizes([width, max(380, content_width - width - self.handleWidth())])
 
+    def remember(self, _position, _index):
+        self.dirty = True
+        self.timer.start()
+
     def flush(self):
-        if not self.timer.isActive() and not self.sender() is self.timer:
+        if not self.dirty:
             return
         self.timer.stop()
         width = self.sizes()[0]
@@ -170,5 +175,6 @@ class WorkspaceSplitter(QSplitter):
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 atomic_write(self.path, str(width).encode('ascii'))
+                self.dirty = False
             except OSError:
                 self.handle(1).setToolTip('拖动调整左右栏宽度。本次宽度未能保存。')

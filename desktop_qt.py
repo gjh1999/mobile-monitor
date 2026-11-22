@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QPropertyAnimation, QRectF, QSharedMemory, QSignalBlocker, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
+from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QDrag, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
 from PySide6.QtWidgets import (
     QApplication, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
     QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QTreeWidget, QTreeWidgetItem,
@@ -54,6 +54,7 @@ from project_sync_policy import ProjectSyncSettings
 from project_intro import ProjectIntroStore
 from project_library import ENTRY_PREFIX, configured_root, set_project_root
 from rpc_errors import RPCError
+from task_tree_preferences import TaskTreePreferences
 
 MUTED = '#24495f'
 WINDOW_TITLE = '澜汐'
@@ -178,6 +179,82 @@ class VerseTitle(QLabel):
 
 
 class ProjectTree(QTreeWidget):
+    moved = Signal(object, object, str)
+
+    def __init__(self):
+        super().__init__()
+        self.drag_item = None
+        self.drop_target = None
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(False)
+
+    def startDrag(self, _actions):
+        self.drag_item = self.currentItem()
+        if self.drag_item is None:
+            return
+        drag = QDrag(self)
+        drag.setMimeData(self.mimeData([self.drag_item]))
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.drag_item = None
+            self.drop_target = None
+            self.viewport().update()
+
+    def dragEnterEvent(self, event):
+        if event.source() is self and self.drag_item is not None:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def target_at(self, point):
+        item = self.itemAt(point)
+        source = self.drag_item
+        if source is None or item is None or item is source:
+            return None
+        tid = source.data(0, Qt.ItemDataRole.UserRole)
+        target_tid = item.data(0, Qt.ItemDataRole.UserRole)
+        valid = (item.parent() is not None if target_tid else bool(item.data(0, PROJECT_WORKSPACE_ROLE))) if tid else (
+            not target_tid and bool(item.data(0, PROJECT_WORKSPACE_ROLE)) and source.parent() is item.parent())
+        if not valid:
+            return None
+        rect = self.visualItemRect(item)
+        relative = (point.y() - rect.top()) / max(1, rect.height())
+        if tid and target_tid and not target_tid.startswith(ENTRY_PREFIX) and .25 <= relative <= .75:
+            zone = 'on'
+        elif tid and not target_tid:
+            zone = 'on'
+        else:
+            zone = 'before' if relative < .5 else 'after'
+        return item, zone
+
+    def dragMoveEvent(self, event):
+        if event.source() is not self:
+            event.ignore()
+            return
+        super().dragMoveEvent(event)
+        self.drop_target = self.target_at(event.position().toPoint())
+        if self.drop_target:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+        self.viewport().update()
+
+    def dragLeaveEvent(self, event):
+        self.drop_target = None
+        self.viewport().update()
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        target = self.target_at(event.position().toPoint()) if event.source() is self else None
+        if target is None:
+            event.ignore()
+            return
+        item, zone = target
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
+        self.moved.emit(self.drag_item, item, zone)
+
     def drawRow(self, painter, option, index):
         option = QStyleOptionViewItem(option)
         option.state &= ~QStyle.StateFlag.State_HasFocus
@@ -186,6 +263,17 @@ class ProjectTree(QTreeWidget):
         painter.setClipRect(item_rect, Qt.ClipOperation.IntersectClip)
         super().drawRow(painter, option, index)
         painter.restore()
+
+        if self.drop_target is not None and self.itemFromIndex(index) is self.drop_target[0]:
+            zone = self.drop_target[1]
+            painter.save()
+            painter.setPen(QPen(QColor('#327fb2'), 2))
+            if zone == 'on':
+                painter.drawRect(item_rect.adjusted(1, 1, -2, -2))
+            else:
+                edge_y = item_rect.top() if zone == 'before' else item_rect.bottom()
+                painter.drawLine(item_rect.left(), edge_y, item_rect.right(), edge_y)
+            painter.restore()
 
         if index.parent().isValid() or not self.model().hasChildren(index):
             return
@@ -691,6 +779,7 @@ class MainWindow(QMainWindow):
         self._project_sync_view = {}
         self._project_intro_group = None
         self.local_project_settings = ProjectSyncSettings(monitor.ROOT)
+        self.tree_preferences = TaskTreePreferences(monitor.ROOT)
         self.task_items = {}
         self.collapsed_projects = {'codex': set(), 'claude': set()}
         self._pending_approvals = {}
@@ -880,6 +969,7 @@ class MainWindow(QMainWindow):
         self.task_choice.itemClicked.connect(self.clicked_task)
         self.task_choice.itemClicked.connect(self.focus_task)
         self.task_choice.itemActivated.connect(self.focus_task)
+        self.task_choice.moved.connect(self.move_tree_item)
         self.task_choice.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.task_choice.customContextMenuRequested.connect(self.show_task_menu)
         self.task_choice.itemExpanded.connect(self.expand_project)
