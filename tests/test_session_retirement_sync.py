@@ -1,15 +1,25 @@
+import socket
 import sqlite3
 import tempfile
 import threading
+import time
 import unittest
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
+from urllib.error import HTTPError
 
+import uvicorn
+
+from coordination_client import ControlClient
+from coordination_server import create_app
 from personal_memory import MEMORY_FIELDS, Mirror, pack, sync_memories
 from personal_relay import (
     EMPTY, RETIREMENT_ACK_PREFIX, RETIREMENT_PREFIX, RETIREMENT_SOURCES_PREFIX, Changed, RemoteRecords, digest,
 )
 from personal_sync import PersonalSync, save_retirement_summary
+from project_library import set_project_root
 
 
 THREAD = "bd0668a8-d3c8-4514-8d98-ae87f46bfb55"
@@ -94,7 +104,7 @@ class SessionRetirementSyncTests(unittest.TestCase):
         unrelated = self.write(backups / digest(b"keep this note"), b"keep this note")
         handoff = self.write(self.home / "lanxi-handoff-backups" / THREAD / (digest(metadata) + ".jsonl"), metadata)
         part = self.write(self.sync.local_state / "parts" / PART_DIRECTORY / ("1" * 24), b"old chunk")
-        with sqlite3.connect(self.home / "memories_1.sqlite") as db:
+        with closing(sqlite3.connect(self.home / "memories_1.sqlite")) as db, db:
             db.execute("CREATE TABLE stage1_outputs(thread_id TEXT)")
             db.executemany("INSERT INTO stage1_outputs VALUES (?)", [(THREAD,), (OTHER,)])
 
@@ -106,7 +116,7 @@ class SessionRetirementSyncTests(unittest.TestCase):
         for removed in (copy, memory, old, handoff, part):
             self.assertFalse(removed.exists(), removed)
         self.assertTrue(unrelated.is_file())
-        with sqlite3.connect(self.home / "memories_1.sqlite") as db:
+        with closing(sqlite3.connect(self.home / "memories_1.sqlite")) as db:
             self.assertEqual(db.execute("SELECT thread_id FROM stage1_outputs").fetchall(), [(OTHER,)])
         self.assertEqual(self.sync.snapshot()["retirements"][THREAD]["acknowledged"], ["desktop", "laptop"])
         self.sync.retirement_delete = lambda *_: self.fail("an acknowledged deletion must not be repeated")
@@ -143,3 +153,65 @@ class SessionRetirementSyncTests(unittest.TestCase):
         self.assertEqual(sessions, {})
         self.assertEqual(reports, [])
         self.assertEqual(self.relay.data, before)
+
+    def test_paired_device_rejoins_after_retirement(self):
+        devices = {name: {"token": token, "personalSpace": "fixture-owner", "projects": []}
+                   for name, token in (("desktop", "a" * 43), ("laptop", "b" * 43))}
+        app = create_app(self.root / "relay.sqlite3", devices, personal_only=True)
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            url = f"http://127.0.0.1:{listener.getsockname()[1]}"
+            server = uvicorn.Server(uvicorn.Config(app, log_level="critical", lifespan="off", ws="none"))
+            worker = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+            worker.start()
+            try:
+                deadline = time.monotonic() + 5
+                while not server.started and worker.is_alive() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(server.started)
+                self._restore_offline_device(url, devices)
+            finally:
+                server.should_exit = True
+                worker.join(8)
+                self.assertFalse(worker.is_alive())
+
+    def _restore_offline_device(self, url, devices):
+        workers = {}
+        for name, spec in devices.items():
+            config = {"url": url, "device": name, "projects": {}}
+            relay = RemoteRecords(ControlClient(config, spec["token"]))
+            root = self.root / name
+            home = root / "code-home"
+            home.mkdir(parents=True)
+            library = root / "projects"
+            library.mkdir()
+            set_project_root(root, library)
+            flow = PersonalSync(root, {}, config, home)
+            native = self.write(home / "sessions" / ROLLOUT, b"native conversation test copy")
+
+            def delete(root, home, tid):
+                self.assertEqual((root / "会话摘要" / f"{tid}.md").read_bytes(), SUMMARY.encode())
+                (home / "sessions" / ROLLOUT).unlink()
+
+            flow.retirement_delete = delete
+            workers[name] = flow, relay, native
+        sender, relay_a, source = workers["desktop"]
+        receiver, relay_b, copy = workers["laptop"]
+        retired_key = f"sessions/example/demo/{ROLLOUT}"
+        relay_a.put(retired_key, EMPTY, b"server source transcript")
+        relay_a.put(RETIREMENT_PREFIX + THREAD, EMPTY, self.relay.data[RETIREMENT_PREFIX + THREAD])
+        with self.assertRaises(HTTPError) as missing:
+            relay_a.read(retired_key)
+        self.assertEqual(missing.exception.code, 404)
+        with patch.object(sender, "store", return_value=relay_a), patch.object(sender, "code_backups", return_value=None):
+            sender.cycle(self.stop)
+        self.assertFalse(source.exists())
+        self.assertTrue(copy.is_file())
+        self.assertEqual(sender.snapshot()["retirements"][THREAD]["acknowledged"], ["desktop"])
+        with self.assertRaises(Changed):
+            relay_b.put(retired_key, EMPTY, b"offline rollout")
+        with patch.object(receiver, "store", return_value=relay_b), patch.object(receiver, "code_backups", return_value=None):
+            receiver.cycle(self.stop)
+        self.assertFalse(copy.exists())
+        self.assertEqual(receiver.snapshot()["retirements"][THREAD]["acknowledged"], ["desktop", "laptop"])

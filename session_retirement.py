@@ -134,24 +134,24 @@ def publish_retirement(flow, tid, markdown, version):
         raise ValueError('个人协调服务暂未启用跨机删除。')
     key = 'retirement/' + tid
     payload = json.dumps({'v': 1, 'markdown': markdown, 'sha256': checksum}, ensure_ascii=False).encode()
+    existing = store.index().get(key, EMPTY)
+    if existing == EMPTY:
+        status = locks.request('/' + tid)
+        if status.get('device') not in (None, '', locks.client.device):
+            raise ValueError('另一台电脑仍持有此会话，请先交还控制权。')
+    elif existing != digest(payload):
+        raise ValueError('协调服务已存有此会话的摘要记录。')
     with native_publication_lock(flow.home, tid):
-        existing = store.index().get(key, EMPTY)
-        if existing == EMPTY:
-            if local_version(flow.home, tid) != version:
-                raise ValueError('会话在生成摘要后改变了，请重新生成摘要。')
-            status = locks.request('/' + tid)
-            if status.get('device') not in (None, '', locks.client.device):
-                raise ValueError('另一台电脑仍持有此会话，请先交还控制权。')
-        elif existing != digest(payload):
-            raise ValueError('协调服务已存有此会话的摘要记录。')
+        if existing == EMPTY and local_version(flow.home, tid) != version:
+            raise ValueError('会话在生成摘要后改变了，请重新生成摘要。')
         document = save_retirement_summary(flow.root, tid, markdown, checksum)
         try:
             store.put(key, existing, payload)
         except OSError:
-            if store.read(key) != payload:
-                raise
-        if store.read(key) != payload:
-            raise ValueError('服务器尚未确认摘要和删除记录。')
+            # The server may have committed before the connection dropped.
+            pass
+    if store.read(key) != payload:
+        raise ValueError('服务器尚未确认摘要和删除记录。')
     flow.wake.set()
     return document
 
