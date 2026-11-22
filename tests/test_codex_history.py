@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -47,6 +48,16 @@ class CodexHistoryTests(unittest.TestCase):
 
     def messages(self):
         return [m['text'] for m in read_codex_conversation(self.path, THREAD)['messages']]
+
+    def test_displays_verified_transferred_summary_as_context(self):
+        summary = '## 进展\n已保存原会话的结论。'
+        checksum = hashlib.sha256(summary.encode()).hexdigest()
+        intro = f'[澜汐会话交接 {OTHER} {checksum}]\n'
+        description = '以下是用户确认的旧会话摘要，供后续会话参考。\n\n'
+        for text in (intro + description + summary, intro + description + summary + '不匹配', '原生隐藏上下文'):
+            self.append(line('response_item', {'type': 'message', 'role': 'user',
+                                              'content': [{'type': 'input_text', 'text': text}]}))
+        self.assertEqual(self.messages(), ['转入的会话摘要\n\n' + summary])
 
     def test_combines_terminal_and_app_messages_without_leaking_tool_or_context(self):
         self.append(line('response_item', dict(type='message', role='user', content=[{'text': 'hidden context'}])))
