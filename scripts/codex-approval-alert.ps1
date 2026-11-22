@@ -38,7 +38,7 @@ function Read-ApprovalDecision($request) {
         }
         $detail = New-Object Windows.Forms.RichTextBox -Property @{
             Dock='Fill'; ReadOnly=$true; WordWrap=$false; DetectUrls=$false; Text=$preview
-            Font=[Drawing.Font]::new('Consolas',10)
+            Font=[Drawing.Font]::new('Consolas',10); MaxLength=[int]::MaxValue
         }
         $layout.Controls.Add($detail,0,1)
 
@@ -65,13 +65,14 @@ function Read-ApprovalDecision($request) {
 }
 
 try {
+    if ($env:LANXI_APPROVAL_RPC -eq '1') { exit 0 }
     [Console]::InputEncoding = [Text.UTF8Encoding]::new($false)
     $text = [Console]::In.ReadToEnd()
     if ($text.Length -gt 1048576) { exit 0 }
     $event = ConvertFrom-Json -InputObject $text
     if ($event.hook_event_name -ne 'PermissionRequest') { exit 0 }
 
-    $decision = Read-ApprovalDecision $event
+    try { $decision = Read-ApprovalDecision $event } catch { $decision = $null }
     if ($decision -eq 'allow' -or $decision -eq 'deny') {
         $choice = @{behavior=$decision}
         if ($decision -eq 'deny') { $choice.message = '用户在澜汐拒绝了本次操作。' }

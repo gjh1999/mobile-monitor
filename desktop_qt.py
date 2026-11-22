@@ -2730,7 +2730,7 @@ class MainWindow(QMainWindow):
             self._popup('审批提醒已配置',
                         '重启 VS Code，在 Codex 输入框旁的 Review hooks 审查并信任「澜汐审批提醒」。'
                         '\n也可以在同一账号的 Codex 终端使用 /hooks。'
-                        '\n澜汐完全退出后，Windows 会显示提醒。审批在发起请求的 Codex 窗口确认。')
+                        '\n独立 Codex 会话的受支持请求可在弹窗选择接受一次或拒绝，也能返回 Codex 处理。')
 
     def set_remote_completion_notifications(self, enabled):
         try:

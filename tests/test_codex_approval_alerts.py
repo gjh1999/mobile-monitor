@@ -84,3 +84,9 @@ class CodexApprovalAlertsTests(unittest.TestCase):
             event["hook_event_name"] = "Stop"
             subprocess.run(command, input=json.dumps(event).encode(), capture_output=True, timeout=10, check=True)
             self.assertEqual(take_alerts(root), [])
+            event.update(hook_event_name="PermissionRequest", session_id="11111111-1111-4111-8111-111111111111",
+                         turn_id="isolated-fixture")
+            output = subprocess.run(command, input=json.dumps(event).encode(), env={**env, "LANXI_APPROVAL_RPC": "1"},
+                                    capture_output=True, timeout=8, check=True)
+            self.assertEqual(output.stdout, b"")
+            self.assertEqual(take_alerts(root), [])

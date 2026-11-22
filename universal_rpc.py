@@ -212,6 +212,8 @@ class CodexRPC(UniversalRPC):
         self.project_writes = ProjectWrites(coordination) if coordination and coordination.paths else None
         self.loaded_threads = set()
         self.draining = False
+        if custom_process is None:
+            custom_process = self._find_process('codex', env={**os.environ, 'LANXI_APPROVAL_RPC': '1'})
         super().__init__('codex', journal=journal, custom_process=custom_process)
 
     def call(self, method, params, timeout=20):
