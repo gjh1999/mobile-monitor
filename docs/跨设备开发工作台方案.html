@@ -285,11 +285,11 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
     <div class="content">
 
 <section id="current">
-  <p><strong>项目分组与同步优先级，已实现待 R47 验包。</strong> 通过「任务 → 项目分组与同步」管理分组与策略。点进本机已有项目先显示本地任务和状态，约 5 秒后安排后台同步。<a href="PERSONAL_SYNC.md#项目分组与同步优先级">操作说明</a> · <a href="DELIVERY_STATUS.md#project-priority-sync">验收工单</a></p>
+  <p><strong>项目分组与同步优先级，R47 已发布。</strong> 通过「任务 → 项目分组与同步」管理分组与策略。点进本机已有项目先显示本地任务和状态，约 5 秒后安排后台同步。<a href="PERSONAL_SYNC.md#项目分组与同步优先级">操作说明</a> · <a href="DELIVERY_STATUS.md#project-priority-sync">验收工单</a></p>
   <p><strong>会话压缩存档与跨机删除，R46 已发布。</strong> 右击一条已结束的 Codex 对话可生成 Markdown 摘要。用户确认后先保存并校验，再向本机、个人协调服务器和已升级的配对电脑提交删除。<a href="DESKTOP.md#压缩并删除-codex-会话">使用说明</a> · <a href="DELIVERY_STATUS.md#session-retirement">验收记录</a></p>
   <p><strong>人工发送延迟，R46 已发布。</strong> 提交立即唤醒后台，额度和会话列表查询独立运行。<a href="DELIVERY_STATUS.md#message-latency">卡顿验收</a></p>
   <h2>当前交付与使用</h2>
-  <p><strong>个人版 R46 已发布，已配对设备可从托盘「检查更新」。</strong> 澜汐显示等待重连的发送状态。能确认尚未发送的 Codex 指令会在连接恢复后继续发送。<a href="DELIVERY_STATUS.md#r44-连接恢复后处理待发指令">消息重连验收</a></p>
+  <p><strong>个人版 R47 已发布，已配对设备可从托盘「检查更新」。</strong> 澜汐显示等待重连的发送状态。能确认尚未发送的 Codex 指令会在连接恢复后继续发送。<a href="DELIVERY_STATUS.md#r44-连接恢复后处理待发指令">消息重连验收</a></p>
   <p><strong>项目扫描、离线任务和合流结果。</strong> 母目录包含 Git 标记时也扫描下级项目。案头按照识别出的本机项目分组，在本机模式下也会列出本机已有的 Codex 会话，包括未匹配项目的会话。笔记本会话在笔记本可本地查看，跨机查看需要两端接入同一个人空间并完成同步。「合流」逐个显示 Git 项目的本机路径和结果。<a href="PERSONAL_SYNC.md#手动同步">操作与排查</a></p>
   <p>项目分组只显示「启卷」时，从「测试 → 项目会话诊断」选择原项目。已配对电脑会按相对路径或 GitHub 仓库标识对照服务器的会话登记。<a href="PORTABLE_CHECK.md#运行验收">项目会话诊断</a></p>
   <p>在「合流」点击「信任 Git 目录并重试」，选择对应的本机仓库。澜汐将该路径加入当前 Windows 用户的 Git <code>safe.directory</code>，再安排下一轮同步。<a href="PERSONAL_SYNC.md#手动同步">手动同步</a></p>
@@ -508,7 +508,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
 <section id="personal-release">
   <h2>个人开发与版本发布</h2>
   <p>新 Windows 电脑双击私人发行目录中的 <code>笔记本下载/下载澜汐最新版.cmd</code>，脚本会建立首次启动记录，完成配对，并将最新稳定版 ZIP 下载到同目录。旧脚本已配对的 R36 用户若遇到缺少 <code>desktop-profile.json</code> 的启动错误，用新版脚本重跑一次即可补齐记录，沿用原设备身份。<a href="PORTABLE_CHECK.md">新电脑安装与修复步骤</a></p>
-  <p>本机 <code>release/</code> 根目录保留当前稳定版 ZIP 和开发版 <code>Lanxi.exe</code>，目前稳定版为 R46，开发版基于 R36。新候选包在独立构建目录验收。每次正式发布并核对摘要后，负责人将被替换的稳定版 ZIP 移入 <code>release/history/</code>，按发布日期保留最近两个不同的历史稳定版。验收记录按版本归档。<a href="RUNBOOK.md#构建-exe">保留规则与本机归档</a></p>
+  <p>本机 <code>release/</code> 根目录保留当前稳定版 ZIP 和开发版 <code>Lanxi.exe</code>，目前稳定版为 R47，开发版基于 R36。新候选包在独立构建目录验收。每次正式发布并核对摘要后，负责人将被替换的稳定版 ZIP 移入 <code>release/history/</code>，按发布日期保留最近两个不同的历史稳定版。验收记录按版本归档。<a href="RUNBOOK.md#构建-exe">保留规则与本机归档</a></p>
   <p>用户将需求交给项目负责人「代码review以及发版」。各角色通过项目工单派工、回执、交付和反馈审核结果。负责人按范围向「前端开发」「后端开发」「bug修复」派工，协调接口、依赖与验收条件。开发和修复工程师在工单提交改动及自测结果。测试工程师的对话为「测试」，负责按验收条件设计和执行测试、复现缺陷、验证修复，并报告测试版本、结果和未验证项。负责人集成代码、审核送审版本，结合测试结果核验候选包并决定正式发布。<a href="../AGENTS.md">项目工作约定</a> · <a href="DELIVERY_STATUS.md#项目工单">项目工单</a></p>
   <h3>从修改到发布</h3>
   <ol>
