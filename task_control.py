@@ -18,6 +18,15 @@ CODEX_PERMISSIONS = {
 }
 
 
+def clean_title(text):
+    if not isinstance(text, str) or any(ord(c) < 32 or c in '\u0085\u2028\u2029' for c in text):
+        raise ValueError('任务名称须为单行文本。')
+    text = ' '.join(text.split())
+    if not 1 <= len(text) <= 80:
+        raise ValueError('任务名称须为1到80个字符。')
+    return text
+
+
 class TaskControl:
     def __init__(self, path):
         self.lock = threading.RLock()
@@ -27,10 +36,13 @@ class TaskControl:
         self.runtime = {}
         self.fast_pauses = {}
         self.context_threads = set()
+        self.title_retry = {}
         self.db.execute('CREATE TABLE IF NOT EXISTS targets(id TEXT PRIMARY KEY, enabled INTEGER, paused INTEGER)')
         if 'managed' not in [r[1] for r in self.db.execute('PRAGMA table_info(targets)')]:
             self.db.execute('ALTER TABLE targets ADD COLUMN managed INTEGER NOT NULL DEFAULT 1')
         self.db.execute('CREATE TABLE IF NOT EXISTS task_names(id TEXT PRIMARY KEY, name TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS codex_titles(thread TEXT PRIMARY KEY, title TEXT NOT NULL, '
+                        'revision TEXT NOT NULL, base TEXT, attempted TEXT, state TEXT NOT NULL, native TEXT, message TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS auto_progress(thread TEXT PRIMARY KEY, due REAL NOT NULL, revision TEXT, state TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY, thread TEXT, action TEXT, text TEXT, status TEXT, result TEXT, stamp REAL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS operation_message_turn(id TEXT PRIMARY KEY, turn TEXT NOT NULL)')
@@ -67,20 +79,18 @@ class TaskControl:
         if action == 'create_test' and not thread:
             thread = '00000000-0000-0000-0000-000000000000'
         actions = {'create_test', 'attach', 'detach', 'focus', 'manage', 'unmanage', 'pause', 'resume', 'message', 'rename',
-                   'codex_settings', 'handoff'}
+                   'rename_codex', 'resolve_codex_title', 'codex_settings', 'handoff'}
         if not re.fullmatch(r'[0-9a-fA-F-]{36}', str(thread)) or action not in actions:
             raise ValueError('无效任务或操作。')
         if not isinstance(text, str) or len(text) > 10000 or (action == 'message' and not text.strip()):
             raise ValueError('请输入消息，最多10000字。')
         if action == 'rename':
-            if any(ord(c) < 32 or c in '\u0085  ' for c in text):
-                raise ValueError('任务名称须为单行文本。')
-            text = ' '.join(text.split())
-            if not 1 <= len(text) <= 80:
-                raise ValueError('任务名称须为1到80个字符。')
+            text = clean_title(text)
         key = request_id or str(uuid.uuid4())
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', key):
             raise ValueError('无效操作编号。')
+        if action in ('rename_codex', 'resolve_codex_title'):
+            return self._submit_codex_title(thread, action, text, key)
         with self.lock:
             existing = self.db.execute('SELECT thread,action,text FROM operations WHERE id=?', (key,)).fetchone()
             if existing:
@@ -120,6 +130,101 @@ class TaskControl:
                             result['done'].set()
                     threading.Thread(target=interrupt_owned, daemon=True, name='task-pause').start()
         return key
+
+    def _submit_codex_title(self, tid, action, text, key):
+        try:
+            payload = json.loads(text)
+        except ValueError as error:
+            raise ValueError('无效的标题操作。') from error
+        if not isinstance(payload, dict):
+            raise ValueError('无效的标题操作。')
+        with self.lock, self.db:
+            existing = self.db.execute('SELECT thread,action,text FROM operations WHERE id=?', (key,)).fetchone()
+            if existing:
+                if existing != (tid, action, text):
+                    raise ValueError('操作编号已用于其他请求。')
+                return key
+            row = self.db.execute('SELECT title,revision,base,attempted,state,native FROM codex_titles WHERE thread=?',
+                                  (tid,)).fetchone()
+            if action == 'rename_codex':
+                title = clean_title(payload.get('title'))
+                base = payload.get('base')
+                if base is not None and not isinstance(base, str):
+                    raise ValueError('无效的原生标题。')
+                if row:
+                    base = row[5] if row[4] == 'conflict' else row[2]
+                attempted = row[3] if row and row[4] != 'conflict' else None
+                self._set_pending_title(tid, title, key, base, attempted)
+            elif (not row or row[4] != 'conflict' or row[1] != payload.get('revision')
+                  or type(payload.get('useNative')) is not bool):
+                raise ValueError('标题冲突状态已变化，请刷新后重试。')
+            elif payload['useNative']:
+                self._write_name(tid, row[5])
+                self.db.execute('DELETE FROM codex_titles WHERE thread=?', (tid,))
+            else:
+                self._set_pending_title(tid, row[0], key, row[5], None)
+            self.db.execute("INSERT INTO operations(id,thread,action,text,status,result,stamp) VALUES(?,?,?,?,'succeeded',?,?)",
+                            (key, tid, action, text, '标题操作已保存。', time.time()))
+            self.title_retry.pop(tid, None)
+        return key
+
+    def _write_name(self, tid, title):
+        if title:
+            self.db.execute('INSERT INTO task_names VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name', (tid, title))
+        else:
+            self.db.execute('DELETE FROM task_names WHERE id=?', (tid,))
+
+    def _set_pending_title(self, tid, title, revision, base, attempted):
+        self._write_name(tid, title)
+        self.db.execute("INSERT OR REPLACE INTO codex_titles VALUES(?,?,?,?,?,'pending',NULL,?)",
+                        (tid, title, revision, base, attempted, '待同步到 Codex'))
+
+    def _title_writable(self, rpc, tid, revision):
+        with self.lock:
+            return (self.control_allowed() and self.connection is rpc and not getattr(rpc, 'closed', False)
+                    and tid in rpc.owned_threads and self.runtime.get(tid, {}).get('canControl')
+                    and self.db.execute("SELECT 1 FROM codex_titles WHERE thread=? AND revision=? AND state='pending'",
+                                        (tid, revision)).fetchone() is not None)
+
+    def _sync_codex_title(self, rpc):
+        if getattr(rpc, 'client_type', 'codex') != 'codex' or not self.control_allowed():
+            return
+        now = time.monotonic()
+        with self.lock:
+            pending = self.db.execute("SELECT thread,title,revision,base,attempted FROM codex_titles WHERE state='pending'").fetchall()
+            item = next((row for row in pending if self.title_retry.get(row[0], 0) <= now
+                         and self._title_writable(rpc, row[0], row[2])), None)
+            if item is None:
+                return
+            tid, title, revision, base, attempted = item
+            self.title_retry[tid] = now + 3
+
+        def read_native():
+            thread = rpc.call('thread/read', {'threadId': tid, 'includeTurns': False}, timeout=2).get('thread', {})
+            if thread.get('id') != tid:
+                raise RPCError('Codex 未返回对应的会话。')
+            return thread.get('name') or ''
+
+        try:
+            native = read_native()
+            if native != title:
+                with self.lock, self.db:
+                    if not self._title_writable(rpc, tid, revision):
+                        return
+                    if base is not None and native not in (base, attempted):
+                        self.db.execute("UPDATE codex_titles SET state='conflict',native=?,message=? WHERE thread=? AND revision=?",
+                                        (native, 'Codex 标题已在其他客户端更改。', tid, revision))
+                        return
+                    self.db.execute('UPDATE codex_titles SET base=?,attempted=? WHERE thread=? AND revision=?',
+                                    (native, title, tid, revision))
+                rpc.call('thread/name/set', {'threadId': tid, 'name': title,
+                                            '_sendGuard': lambda: self._title_writable(rpc, tid, revision)}, timeout=2)
+                native = read_native()
+            if native == title:
+                with self.lock, self.db:
+                    self.db.execute('DELETE FROM codex_titles WHERE thread=? AND revision=?', (tid, revision))
+        except (OSError, RPCError, queue.Empty):
+            pass  # The next attempt reads the native title before another write.
 
     def _goal(self, rpc, tid):
         try:
@@ -670,6 +775,7 @@ class TaskControl:
             self._drain(rpc)
             if not refresh or getattr(rpc, 'closed', False):
                 return
+            self._sync_codex_title(rpc)
             with self.lock:
                 targets = self.db.execute('SELECT id FROM targets WHERE enabled=1').fetchall()
             for (tid,) in targets:
@@ -706,7 +812,10 @@ class TaskControl:
                           for r in self.db.execute('SELECT o.id,o.thread,o.action,o.status,o.result,o.stamp,m.turn '
                                                    'FROM operations o LEFT JOIN operation_message_turn m ON m.id=o.id '
                                                    'ORDER BY o.stamp DESC,o.rowid DESC LIMIT 100')]
-            return dict(tasks=tasks, operations=operations, names=names, ready=True)
+            title_sync = {tid: dict(title=title, revision=revision, state=state, nativeTitle=native, message=message)
+                          for tid, title, revision, state, native, message in
+                          self.db.execute('SELECT thread,title,revision,state,native,message FROM codex_titles')}
+            return dict(tasks=tasks, operations=operations, names=names, titleSync=title_sync, ready=True)
 
     def automatic_allowed(self, rpc, tid):
         """Read current stop intent again immediately before an automatic write."""

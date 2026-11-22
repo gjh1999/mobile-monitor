@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QPropertyAnimation, QRectF, QSharedMemory, QSignalBlocker, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QDrag, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
+from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QDrag, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
     QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QTreeWidget, QTreeWidgetItem,
@@ -553,6 +553,7 @@ class Composer(QTextEdit):
     def __init__(self):
         super().__init__()
         self.codex_slash = True
+        self._composing = False
         self.slash = QCompleter([f'{command}   {title}' for command, title in self.SLASH_OPTIONS.items()], self)
         self.slash.setWidget(self)
         self.slash.popup().setAccessibleName('Codex 斜杠选项')
@@ -577,7 +578,18 @@ class Composer(QTextEdit):
         popup.move(self.mapToGlobal(QPoint(0, -popup.height() - 5)))
         popup.setCurrentIndex(self.slash.completionModel().index(0, 0))
 
+    def inputMethodEvent(self, event):
+        self._composing = bool(event.preeditString())
+        super().inputMethodEvent(event)
+
     def keyPressEvent(self, event):
+        enter = event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+        if enter and self._composing:
+            event.accept()
+            return
+        if enter and event.isAutoRepeat():
+            event.accept()
+            return
         popup = self.slash.popup()
         if popup.isVisible():
             if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down):
@@ -597,7 +609,12 @@ class Composer(QTextEdit):
                 popup.hide()
                 event.accept()
                 return
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        modifiers = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        if enter and modifiers == Qt.KeyboardModifier.ShiftModifier:
+            self.insertPlainText('\n')
+            event.accept()
+            return
+        if enter and modifiers in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ControlModifier):
             self.send_requested.emit()
             event.accept()
             return
@@ -742,6 +759,7 @@ class ManualSyncDialog(QDialog):
 
 class MainWindow(QMainWindow):
     history_ready = Signal(object, object)
+    submission_ready = Signal(object, object, object)
     approval_ready = Signal(object)
     codex_options_ready = Signal(object, object)
     grouping_changed = Signal(str)
@@ -767,6 +785,10 @@ class MainWindow(QMainWindow):
         self.client_selections = {'codex': '', 'claude': ''}
         self.task_drafts = {}
         self._pending_operations = {}
+        self._local_messages = {}
+        self._matched_messages = {}
+        self._submission_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='lanxi-submit')
+        self.submission_ready.connect(self.submission_finished, Qt.ConnectionType.QueuedConnection)
         self._started_at = time.time()
         self._seen_operation_states = {'codex': {}, 'claude': {}}
         self._error_events = {}
@@ -1028,6 +1050,7 @@ class MainWindow(QMainWindow):
         configure_text(self.conversation, 10, 3)
         self.conversation.setMinimumHeight(130)
         self.conversation.setOpenExternalLinks(False)
+        self.conversation.anchorClicked.connect(self.restore_local_message)
         self.conversation.viewport().setAutoFillBackground(False)
         conversation_layout.addWidget(self.conversation, 1)
 
@@ -1057,7 +1080,7 @@ class MainWindow(QMainWindow):
         self.send_button = ActionButton('↑')
         self.send_button.setObjectName('send')
         self.send_button.setFixedSize(34, 34)
-        self.send_button.setToolTip('发送指令 · Ctrl+Enter')
+        self.send_button.setToolTip('Enter 发送 · Shift+Enter 换行')
         self.send_button.setAccessibleName('发送指令')
         self.send_button.clicked.connect(lambda: self.operate('message'))
         send_row.addWidget(self.send_button)
@@ -1507,6 +1530,7 @@ class MainWindow(QMainWindow):
         self.approval_timer.stop()
         self.activity_timer.stop()
         self._approval_pool.shutdown(wait=False, cancel_futures=True)
+        self._submission_pool.shutdown(wait=True)
         self._history_pool.shutdown(wait=True, cancel_futures=True)
         if self.worker:
             self.worker.join(timeout=8)
@@ -2300,19 +2324,76 @@ class MainWindow(QMainWindow):
             self._popup('操作失败', '后台仍在启动，请稍候重试。')
             return
         try:
+            if action == 'message':
+                self.queue_message(controller, target, text)
+                return
             operation = controller.submit(target, action, text, str(uuid.uuid4()))
             self._pending_operations[(self.client, operation)] = {'action': action, 'threadId': target, 'text': text}
-            if action == 'message':
-                self.message_edit.clear()
             self.control_message.setText({
                 'pause': '正在暂泊…', 'rename': '正在保存任务名称…', 'focus': '正在执舟…',
             }.get(action, '已提交，等待确认'))
         except Exception as error:
             self._popup('操作失败', str(error))
 
+    def queue_message(self, controller, thread, text):
+        if len(text) > 10000:
+            raise ValueError('请输入消息，最多10000字。')
+        operation = str(uuid.uuid4())
+        key = self.client, thread
+        self._local_messages.setdefault(key, {})[operation] = {'text': text, 'status': '待发送', 'time': time.time()}
+        self.message_edit.clear()
+        self.message_edit.setFocus()
+        self.refresh_local_messages(key)
+        future = self._submission_pool.submit(controller.submit, thread, 'message', text, operation)
+        future.add_done_callback(lambda result: self.submission_ready.emit(key, operation, result))
+
+    def submission_finished(self, key, operation, future):
+        try:
+            future.result()
+        except Exception as error:
+            item = self._local_messages.get(key, {}).get(operation)
+            if item is not None:
+                item.update(status='发送失败', error=str(error), recoverable=True)
+                self.refresh_local_messages(key)
+
+    def restore_local_message(self, url):
+        if url.scheme() != 'lanxi-draft':
+            return
+        key = self.client, self.selected_thread
+        item = self._local_messages.get(key, {}).get(url.path().removeprefix('/'))
+        if item and item.get('recoverable'):
+            if self.message_edit.toPlainText():
+                QApplication.clipboard().setText(item['text'])
+                self.control_message.setText('原消息已复制，当前草稿已保留。')
+            else:
+                self.message_edit.setPlainText(item['text'])
+                self.message_edit.setFocus()
+
+    def update_local_messages(self, controls):
+        changed = set()
+        for operation in controls.get('operations', ()):
+            key = self.client, operation.get('threadId')
+            item = self._local_messages.get(key, {}).get(operation['id'])
+            if item is None:
+                continue
+            state = operation.get('status')
+            detail = operation.get('message') or ''
+            status = {'queued': '等待重连' if '重连' in detail else '待发送', 'running': '待发送',
+                      'succeeded': '已送达', 'failed': '发送失败', 'cancelled': '发送失败',
+                      'unknown': '送达未确认'}.get(state, item['status'])
+            values = {'status': status, 'turnId': operation.get('messageTurnId'),
+                      'recoverable': state in ('failed', 'cancelled', 'unknown'),
+                      'error': detail if state in ('failed', 'cancelled', 'unknown') else ''}
+            if any(item.get(field) != value for field, value in values.items()):
+                item.update(values)
+                changed.add(key)
+        for key in changed:
+            self.refresh_local_messages(key)
+
     def check_operation_results(self, controls):
         if controls.get('ready') is not True:
             return  # The worker has not loaded persistent history yet.
+        self.update_local_messages(controls)
         states = self._seen_operation_states[self.client]
         for operation in reversed(controls.get('operations') or []):
             key, status = operation['id'], operation.get('status')
