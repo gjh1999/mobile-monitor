@@ -2470,6 +2470,8 @@ class MainWindow(QMainWindow):
             if any(item.get(field) != value for field, value in values.items()):
                 item.update(values)
                 changed.add(key)
+                if key == (self.client, self.selected_thread) and detail:
+                    self.control_message.setText(display_text(detail))
         for key in changed:
             self.refresh_local_messages(key)
 

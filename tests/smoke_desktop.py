@@ -1315,7 +1315,7 @@ def main():
             assert window.action_buttons['pause'].isEnabled()
             window.message_edit.setPlainText('请优先处理这个新指令')
             QTest.mouseClick(window.send_button, Qt.MouseButton.LeftButton)
-            assert wait_until(lambda: claude.calls[-1][1] == 'message')
+            assert wait_until(lambda: claude.calls[-1][1] == 'message'), [box.text() for box in window.findChildren(QMessageBox)]
             assert claude.calls[-1][:3] == (CLAUDE, 'message', '请优先处理这个新指令')
             message_id = claude.calls[-1][3]
             op = next(o for o in claude.data['operations'] if o['id'] == message_id)
