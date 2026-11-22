@@ -3,7 +3,8 @@
 import threading
 from concurrent.futures import Future
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QPushButton, QTextEdit, QVBoxLayout
 
 from session_retirement import publish_retirement, summarize
@@ -39,6 +40,9 @@ class RetirementDialog(QDialog):
         self.commit.setEnabled(False)
         self.commit.clicked.connect(self.confirm)
         layout.addWidget(self.commit)
+        self.open_document = QPushButton('打开 Markdown 摘要')
+        self.open_document.hide()
+        layout.addWidget(self.open_document)
         close = QPushButton('关闭')
         close.clicked.connect(self.reject)
         layout.addWidget(close)
@@ -98,6 +102,8 @@ class RetirementDialog(QDialog):
         self.status.setText(f'摘要已保存至 {path}。服务器已接受，等待设备回执。')
         self.generate.hide()
         self.commit.hide()
+        self.open_document.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))))
+        self.open_document.show()
 
     def refresh(self):
         if self.job and self.job[0].done():

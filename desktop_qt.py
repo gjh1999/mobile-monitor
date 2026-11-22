@@ -1700,7 +1700,11 @@ class MainWindow(QMainWindow):
                 threads = {t['id']:t for t in snap.get('threads',[])}
                 for tid, session in view['sessions'].items():
                     threads[tid] = {**threads.get(tid,{'id':tid,'title':'跨机会话 · '+session['project']}),'cwd':session['cwd']}
-                snap['threads'] = [row for tid, row in threads.items() if tid not in view.get('retirements', {})]
+                retired = view.get('retirements', {})
+                snap['threads'] = [row for tid, row in threads.items() if tid not in retired]
+                if retired and snap.get('controls'):
+                    controls = snap['controls']
+                    snap['controls'] = {**controls, 'tasks': [row for row in controls['tasks'] if row['threadId'] not in retired]}
             if self._pending_open:
                 project, epoch = self._pending_open
                 paths = {**view['projects'], **view.get('folderProjects', {})}

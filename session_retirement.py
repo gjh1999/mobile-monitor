@@ -70,7 +70,7 @@ def ensure_leaf(rpc, tid):
         while True:
             result = rpc.call('thread/list', {
                 'archived': archived, 'limit': 200,
-                'sourceKinds': ['subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther'],
+                'sourceKinds': ['subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther'],
                 'cursor': cursor,
             })
             if any(row.get('parentThreadId') == tid for row in result.get('data', [])):
@@ -145,27 +145,36 @@ def publish_retirement(flow, tid, markdown, version):
         elif existing != digest(payload):
             raise ValueError('协调服务已存有此会话的摘要记录。')
         document = save_retirement_summary(flow.root, tid, markdown, checksum)
-        store.put(key, existing, payload)
+        try:
+            store.put(key, existing, payload)
+        except OSError:
+            if store.read(key) != payload:
+                raise
+        if store.read(key) != payload:
+            raise ValueError('服务器尚未确认摘要和删除记录。')
     flow.wake.set()
     return document
 
 
 def delete_local_session(root, home, tid):
-    with native_publication_lock(home, tid):
-        exists = local_version(home, tid) is not None
-    if exists:
+    if local_version(home, tid) is not None:
+        with native_publication_lock(home, tid):
+            version = local_version(home, tid)
         with open_rpc(home) as rpc:
             ensure_leaf(rpc, tid)
+            if local_version(home, tid) != version:
+                raise ValueError('原始会话刚刚变化，稍后重试删除。')
             rpc.call('thread/delete', {'threadId': tid})
         if local_version(home, tid) is not None:
             raise ValueError('Codex 尚未确认本机原始记录已移除。')
-    for name, rows in (('replies.sqlite3', ('replies', 'task_events')),
+    for name, rows in (('replies.sqlite3', ('replies', 'task_events', 'pending_reply_notifications')),
                        ('task-control.sqlite3', ('operations', 'targets', 'task_names', 'auto_progress'))):
         path = root / name
         if not path.is_file():
             continue
         connection = sqlite3.connect(path, timeout=1)
         try:
+            connection.execute('PRAGMA secure_delete=ON')
             with connection:
                 tables = {row[0] for row in connection.execute('SELECT name FROM sqlite_master WHERE type="table"')}
                 for table in rows:

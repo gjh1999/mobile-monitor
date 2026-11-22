@@ -157,6 +157,7 @@ class RetirementServiceTests(unittest.TestCase):
     def test_old_server_capability_probe_returns_false_without_trying_to_delete(self):
         records = RemoteRecords(None)
         error = HTTPError('http://test', 404, 'Not found', None, None)
+        self.addCleanup(error.close)
         with patch.object(records, 'request', side_effect=error) as request:
             self.assertFalse(records.retirement_supported())
             request.assert_called_once_with('GET', 'retirement-supported')

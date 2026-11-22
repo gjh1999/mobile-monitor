@@ -16,6 +16,7 @@ RETIREMENT_PREFIX = "retirement/"
 RETIREMENT_ACK_PREFIX = "retirement-acks/"
 RETIREMENT_SOURCES_PREFIX = "retirement-sources/"
 MAX_RETIREMENT_MARKDOWN = 64 * 1024
+_MAX_RETIREMENT_JSON = 6 * MAX_RETIREMENT_MARKDOWN + 256
 _THREAD_ID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 _SHA256 = r"[0-9a-f]{64}"
 _CHUNKS = "session-chunks/"
@@ -32,6 +33,8 @@ def digest(data):
 
 def retirement_markdown(data):
     try:
+        if len(data) > _MAX_RETIREMENT_JSON:
+            raise ValueError
         marker = json.loads(data.decode("utf-8"))
         markdown = marker["markdown"]
         body = markdown.encode("utf-8")
@@ -40,7 +43,7 @@ def retirement_markdown(data):
                 or marker["sha256"] != digest(body)):
             raise ValueError
         return markdown
-    except (AttributeError, KeyError, TypeError, ValueError):
+    except (AttributeError, KeyError, RecursionError, TypeError, ValueError):
         raise ValueError("会话摘要格式或校验值无效") from None
 
 
@@ -60,7 +63,7 @@ def _session_thread(key):
 def _manifest_parts(data):
     try:
         parts = json.loads(data)["parts"]
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, RecursionError, TypeError, ValueError):
         return set()
     if not isinstance(parts, list):
         return set()
@@ -302,9 +305,10 @@ def install_routes(app, path, enrollment):
     async def write(request: APIRequest, key: str, previous: str, session_id: str | None = None, store=authorized):
         if len(key) > 650 or not re.fullmatch(r"-|[a-f0-9]{64}", previous):
             raise HTTPException(422)
+        limit = _MAX_RETIREMENT_JSON if key.startswith(RETIREMENT_PREFIX) else MAX_RECORD
         content = bytearray()
         async for block in request.stream():
-            if len(content) + len(block) >= MAX_RECORD:
+            if len(content) + len(block) >= limit:
                 raise HTTPException(413)
             content.extend(block)
         try:
