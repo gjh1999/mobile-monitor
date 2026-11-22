@@ -790,6 +790,7 @@ class MainWindow(QMainWindow):
         self._local_messages = {}
         self._optimistic_titles = {}
         self._matched_messages = {}
+        self._submissions = set()
         self._submission_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='lanxi-submit')
         self.submission_ready.connect(self.submission_finished, Qt.ConnectionType.QueuedConnection)
         self.title_submission_ready.connect(self.title_submission_finished, Qt.ConnectionType.QueuedConnection)
@@ -2412,6 +2413,12 @@ class MainWindow(QMainWindow):
             if action == 'message':
                 self.queue_message(controller, target, text)
                 return
+            if any(not future.done() for future in self._submissions):
+                operation = str(uuid.uuid4())
+                self._pending_operations[(self.client, operation)] = {'action': action, 'threadId': target, 'text': text}
+                self.submit_in_background(controller, (self.client, target), action, text, operation)
+                self.control_message.setText('已排队，等待后台处理。')
+                return
             operation = controller.submit(target, action, text, str(uuid.uuid4()))
             self._pending_operations[(self.client, operation)] = {'action': action, 'threadId': target, 'text': text}
             self.control_message.setText({
@@ -2429,17 +2436,24 @@ class MainWindow(QMainWindow):
         self.message_edit.clear()
         self.message_edit.setFocus()
         self.refresh_local_messages(key)
-        future = self._submission_pool.submit(controller.submit, thread, 'message', text, operation)
+        self.submit_in_background(controller, key, 'message', text, operation)
+
+    def submit_in_background(self, controller, key, action, text, operation):
+        future = self._submission_pool.submit(controller.submit, key[1], action, text, operation)
+        self._submissions.add(future)
         future.add_done_callback(lambda result: self.submission_ready.emit(key, operation, result))
 
     def submission_finished(self, key, operation, future):
+        self._submissions.discard(future)
         try:
             future.result()
         except Exception as error:
             item = self._local_messages.get(key, {}).get(operation)
             if item is not None:
-                item.update(status='发送失败', error=str(error), recoverable=True)
+                item.update(status='发送失败', error=display_text(error), recoverable=True)
                 self.refresh_local_messages(key)
+            elif self._pending_operations.pop((key[0], operation), None) is not None:
+                self._popup('操作失败', str(error))
 
     def restore_local_message(self, url):
         if url.scheme() != 'lanxi-draft':
@@ -2468,7 +2482,7 @@ class MainWindow(QMainWindow):
                       'unknown': '送达未确认'}.get(state, item['status'])
             values = {'status': status, 'turnId': operation.get('messageTurnId'),
                       'recoverable': state in ('failed', 'cancelled', 'unknown'),
-                      'error': detail if state in ('failed', 'cancelled', 'unknown') else ''}
+                      'error': display_text(detail) if state in ('failed', 'cancelled', 'unknown') else ''}
             if any(item.get(field) != value for field, value in values.items()):
                 item.update(values)
                 changed.add(key)

@@ -1348,12 +1348,12 @@ def main():
             window.message_edit.setPlainText('新的未发送草稿')
             op.update(status='failed', message='Synthetic send failure ' + CLAUDE)
             window.refresh()
-            QTest.qWait(40)
-            popups = window.findChildren(QMessageBox)
-            assert len([p for p in popups if p.isVisible()]) == 1
-            assert CLAUDE not in popups[0].text()
+            assert '发送失败' in window.conversation.toPlainText()
+            assert CLAUDE not in window.conversation.toPlainText()
             assert window.message_edit.toPlainText() == '新的未发送草稿'
-            popups[0].accept()
+            with patch('desktop_qt.QApplication.clipboard') as clipboard:
+                window.restore_local_message(QUrl('lanxi-draft:/' + message_id))
+                clipboard.return_value.setText.assert_called_once_with('请优先处理这个新指令')
             QTest.qWait(30)
             window.refresh()
             QTest.qWait(30)
