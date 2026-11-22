@@ -13,7 +13,7 @@ from rpc_errors import RPCNotSent
 class FakeRPC:
  closed = False
  def __init__(self):self.calls = []
- def call(self, method, params):
+ def call(self, method, params, timeout=20):
   self.calls.append(method)
   if method == 'account/rateLimits/read':raise RPCError('rejected')
   return {'data': [{'id': 't', 'status': {'type': 'active'}}]}
@@ -21,16 +21,25 @@ class FakeRPC:
 
 class Tests(unittest.TestCase):
  def test_quota_rejection_preserves_connection(self):
-  original = monitor.snapshot()
-  scheduler = Scheduler()
-  try:
-   rpc = FakeRPC();monitor.collect(rpc, {}, scheduler)
+  with patch.object(monitor,'state',copy.deepcopy(monitor.state)):
+   status=monitor.CodexStatus(threading.Event())
+   rpc=FakeRPC();status.use_rpc(rpc);status.refresh(rpc,status.generation)
    self.assertFalse(rpc.closed)
    self.assertIn('thread/list', rpc.calls)
    self.assertIsNone(monitor.state['quota'])
    self.assertEqual(monitor.state['threads'][0]['id'], 't')
-  finally:
-   monitor.update(**original);scheduler.db.close()
+
+ def test_failed_thread_list_keeps_the_last_successful_snapshot(self):
+  with patch.object(monitor,'state',copy.deepcopy(monitor.state)):
+   status=monitor.CodexStatus(threading.Event())
+   rpc=FakeRPC();status.use_rpc(rpc);status.refresh(rpc,status.generation)
+   threads=copy.deepcopy(monitor.state['threads'])
+   def failed_list(method,params,timeout):
+    raise TimeoutError()
+   rpc.call=failed_list
+   status.refresh(rpc,status.generation)
+   self.assertEqual(monitor.state['threads'],threads)
+   self.assertEqual(monitor.state['threadStatus'],'unavailable')
 
  def rpc(self):
   rpc = RPC.__new__(RPC);rpc.approvals = Approvals();rpc.lock = threading.Lock();rpc.pending = {};rpc.closed = False
@@ -99,28 +108,33 @@ class Tests(unittest.TestCase):
    for function, args in ((monitor.get_controller, ('invalid',)), (monitor.conversation_for, (tid, 'invalid'))):
     with self.assertRaises(ValueError):function(*args)
 
- def test_collect_reads_quota_before_scheduling_and_exposes_persisted_wait(self):
+ def test_fresh_quota_drives_scheduling_and_exposes_persisted_wait(self):
   from tests.test_quota_recovery import Peer, TID, quota
   original=monitor.snapshot();scheduler=Scheduler()
   class QuotaPeer(Peer):
    def __init__(self):
     super().__init__();self.quota=quota();self.order=[]
-   def call(self,method,params):
+   def call(self,method,params,timeout=20):
     self.order.append(method)
     if method=='account/rateLimits/read':return copy.deepcopy(self.quota)
     if method=='thread/list':return {'data':[{'id':TID,'status':{'type':self.status}}]}
     return super().call(method,params)
   peer=QuotaPeer()
   task={'threadId':TID,'enabled':True,'exclusiveOwner':True,'prompt':'continue same work'}
+  status=monitor.CodexStatus(threading.Event());status.use_rpc(peer)
+  def schedule(now):
+   status.refresh(peer,status.generation)
+   _,quota=status.take_quota(peer)
+   with patch('automation.time.time',return_value=now):monitor.run_schedule(peer,[task],scheduler,quota)
   try:
-   with patch('automation.time.time',return_value=100):monitor.collect(peer,{'tasks':[task]},scheduler)
+   schedule(100)
    self.assertEqual(peer.order[0],'account/rateLimits/read')
    snap=monitor.snapshot()
    self.assertEqual(snap['quotaWaits'][TID]['resetsAt'],1000)
    self.assertFalse(snap['quota']['ordinaryUsageAllowed'])
    self.assertFalse(peer.sent)
    peer.quota=quota(True,0)
-   with patch('automation.time.time',return_value=1002):monitor.collect(peer,{'tasks':[task]},scheduler)
+   schedule(1002)
    self.assertEqual(len(peer.sent),1)
    self.assertEqual(peer.sent[0]['threadId'],TID)
    self.assertEqual(monitor.snapshot()['quotaWaits'],{})

@@ -586,7 +586,7 @@ class TaskControl:
         finally:
             self.tick_lock.release()
 
-    def tick(self, rpc):
+    def tick(self, rpc, *, refresh=True):
         if getattr(rpc, 'closed', False) or not self.tick_lock.acquire(False):
             return
         try:
@@ -604,7 +604,7 @@ class TaskControl:
             for (tid,) in targets:
                 with self.lock:
                     old = self.runtime.get(tid)
-                if not old or time.time() >= old.get('retryAt', 0):
+                if not old or (refresh and time.time() >= old.get('retryAt', 0)):
                     loaded = self._load(rpc, tid)
                     if getattr(rpc, 'closed', False):
                         return
@@ -615,6 +615,14 @@ class TaskControl:
                     current = self._load(rpc, tid)
                     with self.lock:
                         self.runtime[tid] = current
+            self._drain(rpc)
+            if not refresh or getattr(rpc, 'closed', False):
+                return
+            with self.lock:
+                targets = self.db.execute('SELECT id FROM targets WHERE enabled=1').fetchall()
+            for (tid,) in targets:
+                with self.lock:
+                    current = self.runtime.get(tid, {})
                 if current.get('canControl') and time.time() - current.get('checkedAt', 0) >= 1:
                     try:
                         status = rpc.call('thread/read', {'threadId': tid, 'includeTurns': False}).get('thread', {}).get('status')
@@ -623,7 +631,6 @@ class TaskControl:
                         status, goal = {'type': 'unknown'}, None
                     with self.lock:
                         current.update(threadStatus=status, goalStatus=goal, checkedAt=time.time())
-            self._drain(rpc)
         except ConnectionError:
             if not getattr(rpc, 'closed', False):
                 raise
