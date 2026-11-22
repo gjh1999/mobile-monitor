@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QPainter
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QMessageBox, QPushButton, QSplitter, QSplitterHandle,
+    QLabel, QMessageBox, QPushButton, QSplitter, QSplitterHandle,
     QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 

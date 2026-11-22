@@ -12,6 +12,7 @@ import time
 import uuid
 from collections import Counter, OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from html import escape
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QPropertyAnimation, QRectF, QSharedMemory, QSignalBlocker, Qt, QTimer, QUrl, Signal
@@ -2390,6 +2391,61 @@ class MainWindow(QMainWindow):
         for key in changed:
             self.refresh_local_messages(key)
 
+    def reconcile_local_messages(self, key, messages):
+        pending = self._local_messages.get(key)
+        if not pending:
+            return
+        matched = self._matched_messages.setdefault(key, set())
+        counts = Counter()
+        for message in messages:
+            if message['role'] != 'user':
+                continue
+            turn, message_id = message.get('turnId'), message.get('id')
+            identity = (turn, message_id) if message_id else (turn, message['time'], message['text'])
+            counts[identity] += 1
+            occurrence = identity, counts[identity]
+            if occurrence in matched:
+                continue
+            operation = message_id if message_id in pending else next((identifier for identifier, item in pending.items()
+                if turn and turn == item.get('turnId') and message['text'] == item['text']
+                and message['time'] >= item['time']), None)
+            if operation is not None:
+                matched.add(occurrence)
+                pending.pop(operation, None)
+
+    def refresh_local_messages(self, key):
+        if key != self._visible_history or key != (self.client, self.selected_thread):
+            return
+        cached = self._history_cache.get(key)
+        if cached:
+            self.reconcile_local_messages(key, cached[0].get('messages', ()))
+        document = self.conversation.document()
+        scroll = self.conversation.verticalScrollBar()
+        position = scroll.value()
+        follow = position >= scroll.maximum() - 4
+        cursor = QTextCursor(document)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        start = getattr(document, 'lanxi_send_tail', None)
+        if start is not None and start <= cursor.position():
+            cursor.setPosition(start, QTextCursor.MoveMode.KeepAnchor)
+            cursor.removeSelectedText()
+        document.lanxi_send_tail = cursor.position()
+        historical = getattr(document, 'lanxi_history_frames', getattr(document, 'message_frames', ()))
+        document.lanxi_history_frames = historical
+        tails = []
+        for operation, item in self._local_messages.get(key, {}).items():
+            tails.append(message_html('你 · ' + item['status'], item['text'], False))
+            if item.get('recoverable'):
+                detail = escape(item.get('error') or '')
+                tails.append(f'<p align="right" style="font-size:9pt;">{detail} '
+                             f'<a href="lanxi-draft:/{operation}">取回原文</a></p>')
+        if tails:
+            cursor.insertHtml(''.join(tails))
+        frames = tuple((frame, False) for frame in document.rootFrame().childFrames()
+                       if frame.firstPosition() > document.lanxi_send_tail)
+        document.message_frames = (*historical, *frames)
+        scroll.setValue(scroll.maximum() if follow else min(position, scroll.maximum()))
+
     def check_operation_results(self, controls):
         if controls.get('ready') is not True:
             return  # The worker has not loaded persistent history yet.
@@ -2412,7 +2468,8 @@ class MainWindow(QMainWindow):
                     draft_key = (self.client, own['threadId'])
                     if not self.task_drafts.get(draft_key):
                         self.task_drafts[draft_key] = own['text']
-            if status in ('failed', 'unknown') and previous != status and (own or fresh):
+            local_message = operation.get('action') == 'message' and key in self._local_messages.get((self.client, operation.get('threadId')), {})
+            if status in ('failed', 'unknown') and previous != status and (own or fresh) and not local_message:
                 self._popup('消息发送失败' if operation.get('action') == 'message' else '操作未完成', operation.get('message') or '请检查当前任务状态。')
             if own and status in ('succeeded', 'cancelled', 'failed', 'unknown'):
                 self.control_message.setText(display_text(operation.get('message') or '操作已处理'))
@@ -2724,7 +2781,11 @@ class MainWindow(QMainWindow):
             else:
                 text = '正在读取对话…' if key[1] else '未尽的话，可以接着说。选择一个任务查看对话。'
                 self._history_placeholder.setPlainText(text)
+                self._history_placeholder.lanxi_send_tail = None
+                self._history_placeholder.message_frames = ()
+                self._history_placeholder.lanxi_history_frames = ()
                 self.conversation.setDocument(self._history_placeholder)
+                self.refresh_local_messages(key)
         if not key[1] or self.stop.is_set():
             return
         if self._history_busy:
@@ -2754,6 +2815,7 @@ class MainWindow(QMainWindow):
         scroll = self.conversation.verticalScrollBar()
         value, at_bottom = self._history_scroll.get(self._visible_history, (0, True))
         scroll.setValue(scroll.maximum() if at_bottom else min(value, scroll.maximum()))
+        self.refresh_local_messages(self._visible_history)
 
     def history_loaded(self, key, future):
         self._history_busy = False
