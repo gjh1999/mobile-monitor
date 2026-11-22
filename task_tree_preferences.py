@@ -11,7 +11,7 @@ _WRITE_LOCK = threading.Lock()
 
 
 def _key(value):
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str):
         raise ValueError("任务树位置标识无效")
     return value
 

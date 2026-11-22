@@ -35,6 +35,13 @@ class TaskTreePreferencesTests(unittest.TestCase):
         self.assertIsNone(TaskTreePreferences(self.root).destination("codex", "t1"))
         self.assertEqual(reopened.ordered("codex", "sessions:project-a", ["t1", "t2"]), ["t2", "t1"])
 
+    def test_empty_uncategorized_group_key_is_a_valid_manual_destination(self):
+        self.prefs.order("codex", "projects:all", ["p1", ""])
+        self.prefs.move("codex", "t1", "")
+        reopened = TaskTreePreferences(self.root)
+        self.assertEqual(reopened.ordered("codex", "projects:all", ["", "p1"]), ["p1", ""])
+        self.assertEqual(reopened.destination("codex", "t1"), "")
+
     def test_parallel_edits_merge_and_failed_write_preserves_previous_layout(self):
         other = TaskTreePreferences(self.root)
         with ThreadPoolExecutor(max_workers=2) as workers:
