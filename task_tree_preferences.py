@@ -50,13 +50,17 @@ class TaskTreePreferences:
                                        for client, rows in clients.items()}
         return normalized
 
-    def _save(self, section, client, name, value):
-        client, name = _key(client), _key(name)
+    def _save(self, client, *changes):
+        client = _key(client)
         with _WRITE_LOCK:
             data = self._read()
-            clients = data[section]
-            rows = clients.get(client, {})
-            if rows.get(name) != value:
+            changed = False
+            for section, name, value in changes:
+                clients = data[section]
+                rows = clients.get(client, {})
+                if rows.get(_key(name)) == value:
+                    continue
+                changed = True
                 if value is None:
                     rows.pop(name, None)
                 else:
@@ -65,6 +69,7 @@ class TaskTreePreferences:
                     clients[client] = rows
                 else:
                     clients.pop(client, None)
+            if changed:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 payload = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
                 atomic_write(self.path, payload)
@@ -79,11 +84,14 @@ class TaskTreePreferences:
         return first + [identifier for identifier in ids if identifier not in placed]
 
     def order(self, client, parent, ids):
-        self._save("orders", client, parent, _unique(ids) or None)
+        self._save(client, ("orders", parent, _unique(ids) or None))
 
     def destination(self, client, tid):
         return self._data["destinations"].get(client, {}).get(tid)
 
     def move(self, client, tid, project_key_or_none):
         project = None if project_key_or_none is None else _key(project_key_or_none)
-        self._save("destinations", client, tid, project)
+        self._save(client, ("destinations", tid, project))
+
+    def reposition(self, client, tid, project, ids):
+        self._save(client, ("destinations", tid, _key(project)), ("orders", "sessions:" + project, _unique(ids)))

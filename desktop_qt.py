@@ -1655,8 +1655,6 @@ class MainWindow(QMainWindow):
         self.task_empty.setVisible(matches == 0)
 
     def show_task_menu(self, position):
-        if self.client != 'codex':
-            return
         item = self.task_choice.itemAt(position)
         thread = item.data(0, Qt.ItemDataRole.UserRole) if item else None
         if not thread:
@@ -1670,18 +1668,85 @@ class MainWindow(QMainWindow):
             if entry.get('memory'):
                 menu.addAction('打开项目记忆目录', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(entry['memory'])))
         else:
-            menu.addAction('查看会话 ID', lambda: self.show_session_id(thread))
-            if monitor.personal_sync:
+            if self.client == 'codex':
+                menu.addAction('查看会话 ID', lambda: self.show_session_id(thread))
+            menu.addAction('移动…', lambda: self.choose_session_project(thread))
+            menu.addAction('重命名', lambda: self.rename_session(thread))
+            if self.client == 'codex' and monitor.personal_sync:
                 title = item.data(0, TASK_TITLE_ROLE)
-                menu.addAction('压缩并删除会话…', lambda: self.open_retirement(thread, title))
+                menu.addAction('删除…', lambda: self.open_retirement(thread, title))
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.task_choice.viewport().mapToGlobal(position))
 
-    def open_retirement(self, thread, title):
+    def rename_session(self, thread):
+        item = self.task_items.get(thread)
+        if item is not None:
+            self.task_choice.setCurrentItem(item)
+            self.begin_rename()
+
+    def choose_session_project(self, thread):
+        choices = {f'{item.text(0)} · {item.data(0, PROJECT_WORKSPACE_ROLE)}': key
+                   for key, item in self.project_items.items() if item.data(0, PROJECT_WORKSPACE_ROLE)}
+        choices = {'按原项目显示': None, **choices}
+        picked, ok = QInputDialog.getItem(self, '移动会话', '选择显示位置', list(choices), editable=False)
+        if ok:
+            try:
+                self.tree_preferences.move(self.client, thread, choices[picked])
+            except (OSError, ValueError) as error:
+                self._popup('移动未完成', str(error))
+            self.refresh()
+
+    @staticmethod
+    def child_items(tree_or_item):
+        if isinstance(tree_or_item, QTreeWidgetItem):
+            return [tree_or_item.child(row) for row in range(tree_or_item.childCount())]
+        return [tree_or_item.topLevelItem(row) for row in range(tree_or_item.topLevelItemCount())]
+
+    def move_tree_item(self, source, target, zone):
+        role = Qt.ItemDataRole.UserRole
+        thread, other = source.data(0, role), target.data(0, role)
+        if thread and other and zone == 'on' and not other.startswith(ENTRY_PREFIX):
+            self.queue_session_transfer(source, target)
+            return
+        try:
+            if thread:
+                project = target.parent() if other else target
+                key = project.data(0, TASK_DIRECTORY_ROLE)
+                ids = [node.data(0, role) for node in self.child_items(project) if node.data(0, role) != thread]
+                index = ids.index(other) + int(zone == 'after') if other and other in ids else len(ids)
+                ids.insert(index, thread)
+                if source.parent() is project:
+                    self.tree_preferences.order(self.client, 'sessions:' + key, ids)
+                else:
+                    self.tree_preferences.reposition(self.client, thread, key, ids)
+            else:
+                parent = target.parent()
+                key = source.data(0, TASK_DIRECTORY_ROLE)
+                neighbor = target.data(0, TASK_DIRECTORY_ROLE)
+                category = parent.data(0, PROJECT_CATEGORY_ROLE) if parent is not None else ''
+                ids = [node.data(0, TASK_DIRECTORY_ROLE) for node in self.child_items(parent if parent is not None else self.task_choice)
+                       if node.data(0, TASK_DIRECTORY_ROLE) is not None and node.data(0, TASK_DIRECTORY_ROLE) != key]
+                ids.insert(ids.index(neighbor) + int(zone == 'after'), key)
+                self.tree_preferences.order(self.client, 'projects:' + category, ids)
+        except (OSError, ValueError) as error:
+            self._popup('移动未完成', str(error))
+        QTimer.singleShot(0, self.refresh)
+
+    def queue_session_transfer(self, source, target):
+        if self.client != 'codex' or monitor.personal_sync is None:
+            self._popup('无法转入会话', '会话转入需要已配对的 Codex。')
+            return
+        role = Qt.ItemDataRole.UserRole
+        thread, other = source.data(0, role), target.data(0, role)
+        title, target_title = source.data(0, TASK_TITLE_ROLE), target.data(0, TASK_TITLE_ROLE)
+        QTimer.singleShot(0, lambda: self.open_retirement(thread, title, target=other, target_title=target_title))
+
+    def open_retirement(self, thread, title, *, target=None, target_title=None):
         flow = monitor.personal_sync
         if flow is None:
             return
-        dialog = RetirementDialog(self, flow, thread, title)
+        dialog = RetirementDialog(self, flow, thread, title, target=target, target_title=target_title,
+                                  controller=monitor.get_controller('codex'))
         try:
             dialog.exec()
         finally:
@@ -1713,6 +1778,8 @@ class MainWindow(QMainWindow):
         dialog.deleteLater()
 
     def render_tasks(self, projects, threads, controls):
+        if self.task_choice.drag_item is not None:
+            return
         thread_status = {task.get('id'): (task.get('status') or {}).get('type') for task in threads}
         active_controls = {task.get('threadId'): task for task in controls.get('tasks') or []}
         attaching = {op.get('threadId') for op in controls.get('operations') or []
@@ -1749,6 +1816,7 @@ class MainWindow(QMainWindow):
                 matching = projects_by_name.get(model_label.casefold(), ())
                 group = next(iter(matching)) if len(matching) == 1 else ('model:' + model_label, model_label, '')
             rows.append((tid, title, caption, directory, group))
+        rows = self.order_tree_rows(rows, groups, group_settings)
         signature = (self.client, rows, group_settings)
         if signature != self._task_signature:
             previous_scroll = self.task_choice.verticalScrollBar().value()
@@ -1772,7 +1840,7 @@ class MainWindow(QMainWindow):
                                 heading = QTreeWidgetItem(self.task_choice, [category_name])
                                 heading.setFont(0, ui_font(11, True))
                                 heading.setData(0, PROJECT_CATEGORY_ROLE, category_key)
-                                heading.setFlags(heading.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                                heading.setFlags(heading.flags() & ~(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled))
                                 self.category_items[category_key] = heading
                             parent = self.category_items[category_key]
                         qualifier = folder_name(str(Path(workspace).parent)) if workspace else ''
@@ -1783,9 +1851,13 @@ class MainWindow(QMainWindow):
                         group.setData(0, TASK_DIRECTORY_ROLE, key)
                         if workspace and Path(workspace).is_absolute():
                             group.setData(0, PROJECT_WORKSPACE_ROLE, workspace)
+                        else:
+                            group.setFlags(group.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
                         label = dict(POLICIES).get(policy, '') if policy else ''
                         group.setToolTip(0, '\n'.join(filter(None, (workspace, label))))
                         self.project_items[key] = group
+                    if tid is None:
+                        continue
                     title_key = key, title.casefold()
                     seen_titles[title_key] = seen_titles.get(title_key, 0) + 1
                     count = seen_titles[title_key]
@@ -1794,6 +1866,8 @@ class MainWindow(QMainWindow):
                     item.setData(0, Qt.ItemDataRole.UserRole, tid)
                     item.setData(0, TASK_TITLE_ROLE, title)
                     item.setData(0, TASK_DIRECTORY_ROLE, directory)
+                    if tid.startswith(ENTRY_PREFIX):
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
                     item.setToolTip(0, '\n'.join(filter(None, (visible_title, caption, directory))))
                     self.task_items[tid] = item
                 self.filter_tasks()
@@ -1812,6 +1886,28 @@ class MainWindow(QMainWindow):
         if self.task_choice.currentItem() is None and item is not None and item.parent().isExpanded():
             with QSignalBlocker(self.task_choice):
                 self.task_choice.setCurrentItem(item)
+
+    def order_tree_rows(self, rows, original_groups, group_settings):
+        preferences = self.tree_preferences
+        groups = {group[0]: group for group in original_groups.values() if group[2]}
+        groups.update((row[4][0], row[4]) for row in rows)
+        sections, buckets = {}, {key: {} for key in groups}
+        for key in groups:
+            category, _policy = group_settings.get(key, (None, None))
+            section = 'category:' + category[0] if category else ''
+            sections.setdefault(section, []).append(key)
+        for tid, title, caption, path, group in rows:
+            dest = preferences.destination(self.client, tid) if not tid.startswith(ENTRY_PREFIX) else None
+            view_group = groups.get(dest, group)
+            buckets[view_group[0]][tid] = (tid, title, caption, path, view_group)
+        ordered = []
+        for section, keys in sections.items():
+            for key in preferences.ordered(self.client, 'projects:' + section, keys):
+                sessions = buckets[key]
+                ordered.extend(sessions[tid] for tid in preferences.ordered(self.client, 'sessions:' + key, sessions))
+                if not sessions:
+                    ordered.append((None, '', '', '', groups[key]))
+        return ordered
 
     def all_tasks(self, snap, client=None):
         client = client or self.client
