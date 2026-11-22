@@ -1,4 +1,5 @@
 """Read the visible parts of a local Codex rollout without touching its writer."""
+import hashlib
 import json
 import os
 import sqlite3
@@ -46,6 +47,26 @@ def event_time(event, fallback):
         return fallback
 
 
+def transferred_summary(payload):
+    pieces = payload.get('content')
+    if (payload.get('type') != 'message' or payload.get('role') != 'user'
+            or not isinstance(pieces, list) or len(pieces) != 1):
+        return None
+    piece = pieces[0]
+    if not isinstance(piece, dict) or piece.get('type') != 'input_text':
+        return None
+    text = piece.get('text')
+    if not isinstance(text, str) or not text.startswith('[澜汐会话交接 '):
+        return None
+    header, _, details = text.partition('\n')
+    identity = header.removeprefix('[澜汐会话交接 ').removesuffix(']').split()
+    _, separator, summary = details.partition('\n\n')
+    if len(identity) == 2 and valid_thread_id(identity[0]) and separator and summary:
+        if hashlib.sha256(summary.encode('utf-8')).hexdigest() == identity[1]:
+            return '转入的会话摘要\n\n' + summary
+    return None
+
+
 @dataclass
 class Rollout:
     path: Path
@@ -66,6 +87,9 @@ class Rollout:
         kind = payload.get('type')
         category = event.get('type')
         turn = payload.get('turn_id')
+        if category == 'response_item':
+            self.add(self.legacy, 'user', transferred_summary(payload), event_time(event, fallback), None)
+            return
         if category == 'turn_context' or (category == 'event_msg' and kind == 'task_started'):
             if isinstance(turn, str) and turn:
                 self.turn = turn
@@ -131,7 +155,8 @@ class Rollout:
                 self.discard_line = True
             elif self.discard_line:
                 self.discard_line = False
-            elif len(line) <= LINE_LIMIT and (b'"event_msg"' in line or b'"turn_context"' in line):
+            elif len(line) <= LINE_LIMIT and (b'"event_msg"' in line or b'"turn_context"' in line
+                                              or b'"response_item"' in line and b'"input_text"' in line):
                 self.apply(decode(line), tid, fallback)
             self.offset = stream.tell()
         stream.seek(max(0, self.offset - 64))

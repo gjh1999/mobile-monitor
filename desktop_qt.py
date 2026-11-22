@@ -1675,9 +1675,10 @@ class MainWindow(QMainWindow):
                 menu.addAction('查看会话 ID', lambda: self.show_session_id(thread))
             menu.addAction('移动…', lambda: self.choose_session_project(thread))
             menu.addAction('重命名', lambda: self.rename_session(thread))
-            if self.client == 'codex' and monitor.personal_sync:
+            if self.client == 'codex':
                 title = item.data(0, TASK_TITLE_ROLE)
-                menu.addAction('删除…', lambda: self.open_retirement(thread, title))
+                delete = menu.addAction('删除…', lambda: self.open_retirement(thread, title))
+                delete.setEnabled(monitor.personal_sync is not None)
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.task_choice.viewport().mapToGlobal(position))
 
