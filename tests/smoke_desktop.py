@@ -1176,6 +1176,7 @@ def main():
             tree.customContextMenuRequested.emit(second_row)
             menu = QApplication.activePopupWidget()
             assert menu is not None and menu.actions()[0].text() == '查看会话 ID'
+            assert {'移动…', '重命名'}.issubset({action.text() for action in menu.actions()})
             menu.hide()
             captured_id = []
             def copy_session_id():
@@ -1188,6 +1189,17 @@ def main():
                 menu.actions()[0].trigger()
                 clipboard.return_value.setText.assert_called_once_with(other)
             assert captured_id == [other] and window.selected_thread != other
+            source_session, target_session = window.task_items[other], window.task_items[CODEX]
+            box = tree.visualItemRect(target_session)
+            tree.drag_item = source_session
+            try:
+                assert tree.target_at(box.center()) == (target_session, 'on')
+                assert tree.target_at(QPoint(box.center().x(), box.top())) == (target_session, 'before')
+                with patch.object(window, 'queue_session_transfer') as transfer:
+                    window.move_tree_item(source_session, target_session, 'on')
+                    transfer.assert_called_once_with(source_session, target_session)
+            finally:
+                tree.drag_item = None
             QTest.mouseClick(window.task_choice.viewport(), Qt.MouseButton.LeftButton, pos=second_row)
             assert window.selected_thread == other and codex.calls[-1][:2] == (other, 'focus')
             task_rect = tree.visualItemRect(window.task_items[other])
@@ -1597,6 +1609,43 @@ def main():
                 assert window.action_buttons['open_project'].isEnabled()
                 assert not window.action_buttons['attach'].isEnabled()
                 assert str(project) in window.conversation.toPlainText()
+                from project_intro import ProjectIntroStore
+                from task_tree_preferences import TaskTreePreferences
+                intro_store, tree_prefs = window.project_intro.store, window.tree_preferences
+                splitter_path = window.workspace_splitter.path
+                window.project_intro.store = ProjectIntroStore(root)
+                window.tree_preferences = TaskTreePreferences(root)
+                window.workspace_splitter.path = root / 'splitter-width'
+                with patch.object(monitor, 'ROOT', root), patch.object(monitor, 'personal_sync', None):
+                    viewport = window.task_choice.viewport()
+                    header = item.parent()
+                    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=window.task_choice.visualItemRect(header).center())
+                    assert window.task_detail_pages.currentWidget() is window.project_intro_card
+                    assert window.project_intro.title.text() == project.name
+                    window.project_intro.purpose.setPlainText('本机验收项目')
+                    window.project_intro.progress.setPlainText('完成项目入口测试\n下一步验证重启')
+                    intro_key = window.project_intro.key
+                    window.refresh()
+                    assert window.task_detail_pages.currentWidget() is window.project_intro_card
+                    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=window.task_choice.visualItemRect(item).center())
+                    assert window.task_detail_pages.currentWidget() is window.conversation_card
+                    assert ProjectIntroStore(root).load(intro_key) == ('本机验收项目', '完成项目入口测试\n下一步验证重启')
+                    before = window.workspace_splitter.sizes()[0]
+                    handle = window.workspace_splitter.handle(1)
+                    assert handle.cursor().shape() == Qt.CursorShape.SplitHCursor
+                    center = handle.rect().center()
+                    QTest.mousePress(handle, Qt.MouseButton.LeftButton, pos=center)
+                    QTest.mouseMove(handle, pos=center + QPoint(55, 0))
+                    QTest.mouseRelease(handle, Qt.MouseButton.LeftButton, pos=center)
+                    assert wait_until(lambda: window.workspace_splitter.sizes()[0] > before + 20)
+                    window.workspace_splitter.flush()
+                    assert int(window.workspace_splitter.path.read_text()) == window.workspace_splitter.sizes()[0]
+                    second_header = window.task_items[ENTRY_PREFIX + str(second_project)].parent()
+                    window.move_tree_item(second_header, header, 'before')
+                    assert wait_until(lambda: window.task_choice.indexOfTopLevelItem(window.task_items[ENTRY_PREFIX + str(second_project)].parent())
+                                      < window.task_choice.indexOfTopLevelItem(window.task_items[key].parent()))
+                window.project_intro.store, window.tree_preferences = intro_store, tree_prefs
+                window.workspace_splitter.path = splitter_path
                 monitor.update(indexedProjects=[])
                 window.refresh()
             check_approval_queue(window, args.output)
