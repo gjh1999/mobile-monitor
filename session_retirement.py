@@ -273,7 +273,7 @@ def delete_local_session(root, home, tid):
         if local_version(home, tid) is not None:
             raise ValueError('Codex 尚未确认本机原始记录已移除。')
     for name, rows in (('replies.sqlite3', ('replies', 'task_events', 'pending_reply_notifications')),
-                       ('task-control.sqlite3', ('operations', 'targets', 'task_names', 'auto_progress'))):
+                       ('task-control.sqlite3', ('operations', 'targets', 'task_names', 'auto_progress', 'codex_titles'))):
         path = root / name
         if not path.is_file():
             continue

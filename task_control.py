@@ -203,7 +203,11 @@ class TaskControl:
             thread = rpc.call('thread/read', {'threadId': tid, 'includeTurns': False}, timeout=2).get('thread', {})
             if thread.get('id') != tid:
                 raise RPCError('Codex 未返回对应的会话。')
-            return thread.get('name') or ''
+            name = thread.get('name') or ''
+            with self.lock:
+                if self.connection is rpc and tid in self.runtime:
+                    self.runtime[tid]['nativeTitle'] = name
+            return name
 
         try:
             native = read_native()
@@ -222,7 +226,8 @@ class TaskControl:
                 native = read_native()
             if native == title:
                 with self.lock, self.db:
-                    self.db.execute('DELETE FROM codex_titles WHERE thread=? AND revision=?', (tid, revision))
+                    if self.db.execute('DELETE FROM codex_titles WHERE thread=? AND revision=?', (tid, revision)).rowcount:
+                        self.title_retry.pop(tid, None)
         except (OSError, RPCError, queue.Empty):
             pass  # The next attempt reads the native title before another write.
 
@@ -252,6 +257,7 @@ class TaskControl:
                     pass  # Subsequent live events can still identify the turn.
             return dict(threadId=tid, mode='control', status='attached', message='已接入控制，可暂停或发送消息。', canControl=True,
                         threadStatus=thread.get('status'), title=thread.get('name') or thread.get('title'), cwd=thread.get('cwd'),
+                        nativeTitle=(thread.get('name') or '') if 'name' in thread else None,
                         goalStatus=self._goal(rpc, tid).get('status'), retryAt=time.time() + 3600,
                         codexSettings=self._codex_settings(response))
         except RPCError as error:
@@ -269,6 +275,7 @@ class TaskControl:
                            else '原' + client + '窗口仍在占用会话，只读关注中；请先退出原会话再接入控制。')
                 return dict(threadId=tid, mode='observe', status='observing', title=thread.get('name') or thread.get('title'), cwd=thread.get('cwd'),
                             message=message, canControl=False,
+                            nativeTitle=(thread.get('name') or '') if 'name' in thread else None,
                             threadStatus=thread.get('status'), goalStatus=self._goal(rpc, tid).get('status'),
                             retryAt=time.time() + (3 if isinstance(error, ControlDenied) else 60))
             return dict(threadId=tid, mode='none', status='failed', message='接入失败：' + detail[:180], canControl=False, retryAt=time.time() + 300)
