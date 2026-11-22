@@ -1219,9 +1219,13 @@ def main():
                 flow.projects[project] = str(destination)
                 flow.threads[CODEX] = {'project':project,'cwd':str(destination)}
                 with patch.object(monitor,'personal_sync',flow), patch('desktop_qt.vscode_executable',return_value=editor), patch('desktop_qt.subprocess.Popen') as launch:
+                    flow.save_project_settings([{'id': 'research', 'name': '科研', 'projects': [project]}], {project: 'on_open'})
                     window.refresh()
-                    QTest.mouseClick(window.action_buttons['open_project'], Qt.MouseButton.LeftButton)
-                    assert flow.priority == project and flow.wake.is_set()
+                    assert window.task_items[CODEX].parent().parent().text(0) == '科研'
+                    with patch.object(flow, 'request', wraps=flow.request) as force:
+                        QTest.mouseClick(window.action_buttons['open_project'], Qt.MouseButton.LeftButton)
+                        force.assert_called_once_with(project)
+                    assert flow.wake.is_set()
                     window.refresh()
                     launch.assert_not_called()
                     destination.mkdir()
@@ -1230,13 +1234,26 @@ def main():
                     window.refresh()
                     window.refresh()
                     launch.assert_called_once_with([str(editor),str(destination)])
+                    launch.reset_mock()
+                    flow.wake.clear()
+                    with patch.object(flow, 'request_after_open', wraps=flow.request_after_open) as delayed:
+                        QTest.mouseClick(window.action_buttons['open_project'], Qt.MouseButton.LeftButton)
+                        launch.assert_called_once_with([str(editor), str(destination)])
+                        delayed.assert_called_once_with(project)
+                        assert not flow.wake.is_set()
+                    launch.reset_mock()
+                    pending_path = Path(checkout) / 'not-downloaded'
+                    flow.projects[project] = str(pending_path)
+                    flow.threads[CODEX]['cwd'] = str(pending_path)
+                    window.refresh()
                     QTest.mouseClick(window.action_buttons['open_project'], Qt.MouseButton.LeftButton)
                     del flow.projects[project]
                     with patch.object(window, '_popup') as popup:
                         window.refresh()
                         window.refresh()
                         popup.assert_called_once_with('无法启卷', '项目已移出本机同步清单。')
-                    assert window._pending_open is None and launch.call_count == 1
+                    assert window._pending_open is None
+                    launch.assert_not_called()
                     flow.projects[project] = str(destination)
                     flow.threads[CLAUDE] = {'project': project, 'cwd': str(destination)}
                     window.switch_client('claude')
