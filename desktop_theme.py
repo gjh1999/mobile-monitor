@@ -281,6 +281,8 @@ QTreeWidget#taskList::item:hover { background:rgba(226, 246, 255, 100); }
 QTreeWidget#taskList::item:selected { background:rgba(212, 238, 255, 165); color:#113951; }
 QTextEdit, QTextBrowser { color:#24344d; background:transparent; border:0; padding:0; selection-background-color:#d9e6fc; selection-color:#1c3151; }
 QTextEdit#composer { background:transparent; border:0; }
+QTextEdit#projectIntroEditor { background:rgba(234, 249, 255, 182); border:1px solid rgba(234, 250, 255, 175); border-radius:8px; }
+QTextEdit#projectIntroEditor:focus { border-color:#327fb2; }
 QTextBrowser#conversation, QTextBrowser#infoText { background:transparent; border:0; }
 QPushButton { background:#ffffff; color:#425a7b; border:1px solid #dae3f0; border-radius:8px; padding:7px 11px; }
 QPushButton:hover { background:#f2f6fe; border-color:#a9c1e7; color:#28599f; }

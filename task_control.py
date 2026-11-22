@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from rpc_errors import RPCError, RPCNotSent
-from coordination_client import ControlDenied
+from coordination_client import ControlDenied, ProjectWrites
 
 CODEX_PERMISSIONS = {
     ':read-only': ('只读', '在只读沙箱内工作'),
@@ -26,6 +26,7 @@ class TaskControl:
         self.connection = None
         self.runtime = {}
         self.fast_pauses = {}
+        self.context_threads = set()
         self.db.execute('CREATE TABLE IF NOT EXISTS targets(id TEXT PRIMARY KEY, enabled INTEGER, paused INTEGER)')
         if 'managed' not in [r[1] for r in self.db.execute('PRAGMA table_info(targets)')]:
             self.db.execute('ALTER TABLE targets ADD COLUMN managed INTEGER NOT NULL DEFAULT 1')
@@ -244,6 +245,45 @@ class TaskControl:
         data = rpc.call('thread/turns/list', {'threadId': tid, 'limit': 1, 'sortDirection': 'desc'})
         return next((t.get('id') for t in data.get('data', data.get('turns', []))
                      if t.get('status') in ('inProgress', 'in_progress', 'active')), None)
+
+    def inject_summary_context(self, source, target, item, reserve):
+        """Use the normal Codex writer and suspend automatic writes during the transfer."""
+        with self.tick_lock:
+            with self.lock:
+                rpc = self.connection
+                if (rpc is None or getattr(rpc, 'closed', False) or not self.control_allowed()
+                        or getattr(rpc, 'client_type', 'codex') != 'codex'):
+                    raise ValueError('Codex 控制暂不可用，请打开澜汐并等待连接后重试。')
+                self.context_threads.update((source, target))
+            try:
+                def available():
+                    with self.lock:
+                        return (self.control_allowed() and self.connection is rpc and not getattr(rpc, 'closed', False)
+                                and not self.db.execute("SELECT 1 FROM operations WHERE thread IN (?,?) "
+                                                        "AND status IN ('queued','running') LIMIT 1",
+                                                        (source, target)).fetchone())
+
+                if not available():
+                    raise ValueError('两条会话还有待处理操作，请等操作完成后重试。')
+                if target not in rpc.owned_threads or not self.runtime.get(target, {}).get('canControl'):
+                    loaded = self._load(rpc, target)
+                    if not loaded.get('canControl'):
+                        raise ValueError(loaded['message'])
+                    with self.lock:
+                        if not available():
+                            raise ValueError('会话状态刚变化，请重试。')
+                        self._execute('INSERT INTO targets(id,enabled,paused,managed) VALUES(?,1,0,0) '
+                                      'ON CONFLICT(id) DO UPDATE SET enabled=1', (target,))
+                        self.runtime[target] = loaded
+                if not ProjectWrites.idle(rpc, target):
+                    raise ValueError('目标会话仍在执行或等待审批，请在其空闲后重试。')
+                if not available():
+                    raise ValueError('会话状态刚变化，请重试。')
+                reserve()
+                rpc.call('thread/inject_items', {'threadId': target, 'items': [item], '_sendGuard': available})
+            finally:
+                with self.lock:
+                    self.context_threads.difference_update((source, target))
 
     def _send_allowed(self, tid, operation, action):
         with self.lock:
@@ -659,7 +699,7 @@ class TaskControl:
         with self.lock:
             row = self.db.execute('SELECT enabled,paused,managed FROM targets WHERE id=?', (tid,)).fetchone()
             pending = self.db.execute("SELECT 1 FROM operations WHERE thread=? AND status IN ('queued','running') LIMIT 1", (tid,)).fetchone()
-            return bool(self.control_allowed() and row and row[0] and not row[1] and row[2] and not pending and self.connection is rpc and
+            return bool(self.control_allowed() and tid not in self.context_threads and row and row[0] and not row[1] and row[2] and not pending and self.connection is rpc and
                         tid in getattr(rpc, 'owned_threads', set()) and self.runtime.get(tid, {}).get('canControl'))
 
     def automatic_tasks(self, rpc, tasks, *, explicit_only=False):

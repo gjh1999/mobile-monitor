@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QPropertyAnimation, QRectF, QSharedMemory, QSignalBlocker, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QDrag, QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut, QTextDocument
 from PySide6.QtWidgets import (
-    QApplication, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
+    QApplication, QAbstractItemView, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
     QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QTreeWidget, QTreeWidgetItem,
     QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QStackedWidget, QStyle,
     QStyleOptionViewItem, QSystemTrayIcon,
@@ -185,8 +185,7 @@ class ProjectTree(QTreeWidget):
         super().__init__()
         self.drag_item = None
         self.drop_target = None
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.setDropIndicatorShown(False)
 
     def startDrag(self, _actions):
@@ -1638,6 +1637,7 @@ class MainWindow(QMainWindow):
             for key, group in self.project_items.items():
                 group_matches = 0
                 category = group.parent().text(0).casefold() if group.parent() is not None else ''
+                empty_project = not group.childCount() and (query in group.text(0).casefold() or query in category)
                 for row in range(group.childCount()):
                     item = group.child(row)
                     visible = (query in item.data(0, TASK_TITLE_ROLE).casefold()
@@ -1645,9 +1645,9 @@ class MainWindow(QMainWindow):
                                or query in group.text(0).casefold() or query in category)
                     item.setHidden(not visible)
                     group_matches += int(visible)
-                group.setHidden(group_matches == 0)
+                group.setHidden(group_matches == 0 and not empty_project)
                 group.setExpanded(bool(query) or key not in self.collapsed_projects[self.client])
-                matches += group_matches
+                matches += group_matches + int(empty_project)
             for key, category in self.category_items.items():
                 category.setHidden(all(category.child(i).isHidden() for i in range(category.childCount())))
                 category.setExpanded(bool(query) or key not in self.collapsed_projects[self.client])

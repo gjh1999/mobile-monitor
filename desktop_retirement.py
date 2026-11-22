@@ -11,17 +11,18 @@ from session_retirement import publish_retirement, summarize
 
 
 class RetirementDialog(QDialog):
-    def __init__(self, parent, flow, tid, title):
+    def __init__(self, parent, flow, tid, title, *, target=None, target_title=None, controller=None):
         super().__init__(parent)
         self.flow, self.tid = flow, tid
+        self.target, self.target_title, self.controller = target, target_title, controller
         self.stop = threading.Event()
         self.job = None
         self.version = None
         self.setObjectName('lanxiDialog')
-        self.setWindowTitle('压缩并删除会话')
+        self.setWindowTitle('浓缩并转入会话' if target else '压缩并删除会话')
         self.resize(620, 460)
         layout = QVBoxLayout(self)
-        caption = QLabel(title or 'Codex 会话')
+        caption = QLabel(f'从 {title or "Codex 会话"} 转入 {target_title or "目标会话"}' if target else title or 'Codex 会话')
         caption.setTextFormat(Qt.TextFormat.PlainText)
         caption.setWordWrap(True)
         layout.addWidget(caption)
@@ -36,7 +37,7 @@ class RetirementDialog(QDialog):
         self.generate = QPushButton('生成摘要')
         self.generate.clicked.connect(self.start_summary)
         layout.addWidget(self.generate)
-        self.commit = QPushButton('保存摘要并删除…')
+        self.commit = QPushButton('转入摘要并删除…' if target else '保存摘要并删除…')
         self.commit.setEnabled(False)
         self.commit.clicked.connect(self.confirm)
         layout.addWidget(self.commit)
@@ -78,28 +79,36 @@ class RetirementDialog(QDialog):
     def show_summary(self, result):
         text, self.version = result
         self.editor.setPlainText(text)
-        self.status.setText('请核对摘要。保存并删除后，配对电脑会在联网时处理原会话。')
+        self.status.setText('请核对摘要。目标会话确认写入后，澜汐才会提交原会话的删除。' if self.target else
+                            '请核对摘要。保存并删除后，配对电脑会在联网时处理原会话。')
 
     def confirm(self):
         markdown = self.editor.toPlainText()
         if not markdown.strip():
             self.status.setText('摘要不能为空。')
             return
+        question = ('把这份摘要转入目标会话，并在确认写入后永久删除本机、个人协调服务器和配对电脑上的原对话？'
+                    if self.target else '保存并核验这份摘要后，永久删除本机、个人协调服务器和配对电脑上的原对话？')
         action = QMessageBox.question(
-            self, '确认永久删除原对话',
-            '保存并核验这份摘要后，永久删除本机、个人协调服务器和配对电脑上的原对话？',
+            self, '确认永久删除原对话', question,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if action != QMessageBox.StandardButton.Yes:
             return
-        self.status.setText('正在保存摘要并提交删除…')
+        self.status.setText('正在保存并转入摘要…' if self.target else '正在保存摘要并提交删除…')
         flow, tid, version = self.flow, self.tid, self.version
-        self.launch(lambda: publish_retirement(flow, tid, markdown, version), self.published)
+        if self.target:
+            from session_retirement import transfer_and_retire
+            controller, target = self.controller, self.target
+            self.launch(lambda: transfer_and_retire(flow, controller, tid, target, markdown, version), self.published)
+        else:
+            self.launch(lambda: publish_retirement(flow, tid, markdown, version), self.published)
 
     def published(self, path):
         self.version = None
-        self.status.setText(f'摘要已保存至 {path}。服务器已接受，等待设备回执。')
+        result = '摘要已转入目标会话。' if self.target else ''
+        self.status.setText(f'{result}摘要已保存至 {path}。服务器已接受删除，等待设备回执。')
         self.generate.hide()
         self.commit.hide()
         self.open_document.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))))

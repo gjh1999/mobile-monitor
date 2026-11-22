@@ -201,7 +201,7 @@ class CodexRPC(UniversalRPC):
     control_pending = 0
     control_methods = frozenset({
         'thread/start', 'thread/resume', 'thread/name/set', 'thread/settings/update',
-        'thread/goal/set', 'turn/start', 'turn/steer', 'turn/interrupt',
+        'thread/goal/set', 'thread/inject_items', 'turn/start', 'turn/steer', 'turn/interrupt',
     })
 
     def control_allowed(self):
@@ -275,7 +275,8 @@ class CodexRPC(UniversalRPC):
             if method == 'thread/resume':
                 self.loaded_threads.add(thread)
             return result
-        if method not in ('turn/start', 'turn/steer', 'thread/goal/set', 'thread/resume', 'thread/settings/update'):
+        if method not in ('turn/start', 'turn/steer', 'thread/goal/set', 'thread/resume', 'thread/settings/update',
+                          'thread/inject_items'):
             return super().call(method, params, timeout)
         thread = params['threadId']
         try:
