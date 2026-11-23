@@ -36,6 +36,7 @@ foreach ($item in @(
         @{ name = 'B'; pid = [int]$info.b_pid },
         @{ name = 'coordinator'; pid = [int]$info.server_pid }
     )) {
+    if ($item.pid -le 0) { continue }
     $alive = Get-Process -Id $item.pid -ErrorAction SilentlyContinue
     if ($alive) {
         if (-not $Quiet) { Write-Host ("  force-killing {0} pid={1}" -f $item.name, $item.pid) }
@@ -49,6 +50,7 @@ foreach ($item in @(
         @{ name = 'B'; pid = [int]$info.b_pid },
         @{ name = 'coordinator'; pid = [int]$info.server_pid }
     )) {
+    if ($item.pid -le 0) { continue }
     if (Get-Process -Id $item.pid -ErrorAction SilentlyContinue) { $still += $item.name }
 }
 if ($still.Count -gt 0) {

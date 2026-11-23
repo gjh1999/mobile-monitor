@@ -83,6 +83,7 @@ function Get-FileSha256 {
 
 function Stop-ProcessForce {
     param([int]$ProcessId)
+    if ($ProcessId -le 0) { return }
     $p = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
     if ($p) {
         Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue

@@ -11,11 +11,7 @@
   "pending_imports": [],
   "event_cache": {},
   "tool_dispatch_attempts": 0,
-  "created_at": "1795442832812",
+  "created_at": "1795443083691",
   "last_sync_at": null,
-  "sync_errors": [
-    "1795443040009",
-    "1795443042349",
-    "1795443044696"
-  ]
+  "sync_errors": []
 }
