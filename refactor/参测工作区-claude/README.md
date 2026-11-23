@@ -367,7 +367,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1    # F
 测试特性：
 
 - 每个用例使用独立临时根目录与随机空闲端口，测试结束保留状态、日志和取证。
-- U1–U3 使用题目公开材料；F1–F3 使用自建合成事件与文件，不依赖评审隐藏输入。
+- U1–U3 使用题目公开材料；F1–F3 使用自建合成事件与文件，不需要任何额外输入。
 - 所有等待上限 30 秒，逐项打印 `PASS`/`FAIL` 和实际值。
 - 结果写入 `run\e2e-*\e2e-result.json`、`run\fault-*\e2e-fault-result.json`。
 
