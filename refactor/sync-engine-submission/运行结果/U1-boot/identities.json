@@ -1,0 +1,19 @@
+﻿{
+    "server":  {
+                   "version":  0,
+                   "addr":  "127.0.0.1:8730",
+                   "state":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-U1-boot\\server-data"
+               },
+    "clientA":  {
+                    "project":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-U1-boot\\project-a",
+                    "id":  "A",
+                    "addr":  "127.0.0.1:8731",
+                    "state":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-U1-boot\\a-state"
+                },
+    "clientB":  {
+                    "project":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-U1-boot\\project-b",
+                    "id":  "B",
+                    "addr":  "127.0.0.1:8732",
+                    "state":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-U1-boot\\b-state"
+                }
+}

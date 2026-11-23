@@ -1,0 +1,12 @@
+﻿{
+    "conflicts":  0,
+    "error":  "",
+    "events_pulled":  0,
+    "events_pushed":  0,
+    "offline":  false,
+    "pending_push":  0,
+    "pulled":  0,
+    "pushed":  1,
+    "receipt_lost":  false,
+    "version":  1
+}

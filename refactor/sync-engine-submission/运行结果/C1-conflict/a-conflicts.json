@@ -1,0 +1,16 @@
+﻿{
+    "client_id":  "A",
+    "conflicts":  [
+                      {
+                          "detected_at":  "2026-11-23T18:13:28Z",
+                          "kind":  "edit-edit",
+                          "local_hash":  "c849c0c3fd4da5d0a82c6eb8619ff14d22d68e1c3307f434dc66209551a65d64",
+                          "marker":  "",
+                          "path":  "shared.txt",
+                          "remote_hash":  "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
+                          "saved_as":  "shared.txt.conflict-from-B-166e224f",
+                          "source_batch":  "batch-1795457608639-166e224f",
+                          "source_client":  "B"
+                      }
+                  ]
+}

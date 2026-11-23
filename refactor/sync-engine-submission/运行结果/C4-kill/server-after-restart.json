@@ -1,0 +1,19 @@
+﻿{
+    "commit_count":  1,
+    "dup_hits":  0,
+    "event_count":  0,
+    "event_dup_hits":  0,
+    "event_seq":  0,
+    "fault":  {
+                  "armed":  false,
+                  "mode":  "",
+                  "target":  "",
+                  "count":  0
+              },
+    "now":  "2026-11-23T18:12:56.1268622Z",
+    "server_id":  "coordinator",
+    "server_seq":  1,
+    "unique_events":  0,
+    "uptime_s":  0,
+    "version":  1
+}

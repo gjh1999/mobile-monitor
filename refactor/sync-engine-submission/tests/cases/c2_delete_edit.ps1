@@ -31,7 +31,8 @@ Invoke-Step "C2.3 delete intent and readable modification coexist on A" {
     ($tomb | ConvertTo-Json) | Out-File -Encoding utf8 (Join-Path $Case.Dir "a-tombstone.json")
 
     $cb = Get-Json "http://127.0.0.1:8731/conflicts"
-    Assert-True ($cb.conflicts | Where-Object { $_.kind -eq "delete-edit" }) "A conflict record kind delete-edit"
+    $kinds = @($cb.conflicts | ForEach-Object { $_.kind })
+    Assert-True ($kinds -contains "delete-edit") "A conflict record kind delete-edit"
 }
 
 Invoke-Step "C2.4 local delete intent vs remote edit (mirror case)" {

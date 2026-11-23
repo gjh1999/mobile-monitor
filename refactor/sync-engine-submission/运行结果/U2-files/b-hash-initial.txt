@@ -1,0 +1,1 @@
+﻿D:\VscodeProject\codexDesk\mobile-monitor\refactor\sync-engine-submission\run\test-U2-files\project-b\data\readings.txt sha256=748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3

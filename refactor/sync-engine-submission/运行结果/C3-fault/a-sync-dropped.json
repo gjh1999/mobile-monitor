@@ -1,0 +1,12 @@
+﻿{
+    "conflicts":  0,
+    "error":  "commit ack lost (server may have committed; will retry same batch_id): no bytes from 127.0.0.1:8730",
+    "events_pulled":  0,
+    "events_pushed":  0,
+    "offline":  false,
+    "pending_push":  1,
+    "pulled":  0,
+    "pushed":  0,
+    "receipt_lost":  true,
+    "version":  0
+}

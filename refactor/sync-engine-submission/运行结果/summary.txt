@@ -1,56 +1,50 @@
 ﻿[
     {
         "case":  "U1-boot",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  3
     },
     {
         "case":  "U2-files",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  2.1
     },
     {
         "case":  "U3-events",
         "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "error":  "The remote server returned an error: (422) Unprocessable Entity.",
+        "seconds":  0.8
     },
     {
         "case":  "C1-conflict",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  1.8
     },
     {
         "case":  "C2-delete-edit",
         "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "error":  "Cannot process argument transformation on parameter \u0027Condition\u0027. Cannot convert value \"System.Management.Automation.PSCustomObject\" to type \"System.Boolean\". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.",
+        "seconds":  1.8
     },
     {
         "case":  "C3-fault",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  1.3
     },
     {
         "case":  "C4-kill",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  4.4
     },
     {
         "case":  "C5-segment-replay",
         "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "error":  "The remote server returned an error: (422) Unprocessable Entity.",
+        "seconds":  0.8
     },
     {
         "case":  "C6-pause",
-        "result":  "FAIL",
-        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
-        "seconds":  0
+        "result":  "PASS",
+        "seconds":  1.8
     }
 ]

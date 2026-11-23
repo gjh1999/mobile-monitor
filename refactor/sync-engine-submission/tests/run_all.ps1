@@ -23,7 +23,8 @@ foreach ($c in $cases) {
     Write-Host ("#### CASE " + $c.Name + "  (root=" + $case.Root + ")")
     $sw = [Diagnostics.Stopwatch]::StartNew()
     try {
-        & (Join-Path $Script:SUBMISSION ("tests\cases\" + $c.Script)) $case
+        # Dot-source so the case script shares this scope (and lib.ps1 vars).
+        . (Join-Path $Script:SUBMISSION ("tests\cases\" + $c.Script)) $case
         $results += [ordered]@{ case = $c.Name; result = "PASS"; seconds = [math]::Round($sw.Elapsed.TotalSeconds, 1) }
         Write-Host ("#### " + $c.Name + " PASS")
     } catch {

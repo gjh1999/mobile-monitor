@@ -1,0 +1,26 @@
+{
+  "client_id": "A",
+  "server_url": "http://127.0.0.1:8730",
+  "project_dir": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-C6-pause\\project-a",
+  "version": 2,
+  "applied_seq": 3,
+  "applied_event_seq": 0,
+  "event_push_cursor": 0,
+  "offline": false,
+  "files": {
+    "p-base.txt": {
+      "hash": "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f",
+      "size": 2
+    },
+    "p-during.txt": {
+      "hash": "8d74beec1be996322ad76813bafb92d40839895d6dd7ee808b17ca201eac98be",
+      "size": 2
+    },
+    "p-local.txt": {
+      "hash": "efb83f2a277e9f49b38efd505f5cbb93885e721b6bd16b788937c9396174c006",
+      "size": 6
+    }
+  },
+  "pending_batches": {},
+  "conflicts": []
+}

@@ -41,8 +41,11 @@ function Get-Sha {
 
 function Get-Json {
     param([string]$Url, [string]$Body = $null)
+    # PS 5.1 sends string bodies in ISO-8859-1, which mangles non-ASCII
+    # paths; always send UTF-8 bytes explicitly.
     if ($Body) {
-        $resp = Invoke-WebRequest -UseBasicParsing -Method POST -ContentType "application/json" -Body $Body -Uri $Url -TimeoutSec 30
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Body)
+        $resp = Invoke-WebRequest -UseBasicParsing -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes -Uri $Url -TimeoutSec 30
     } else {
         $resp = Invoke-WebRequest -UseBasicParsing -Method GET -Uri $Url -TimeoutSec 30
     }

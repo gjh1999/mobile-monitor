@@ -1,0 +1,42 @@
+{
+  "client_id": "B",
+  "server_url": "http://127.0.0.1:8730",
+  "project_dir": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-C2-delete-edit\\project-b",
+  "version": 8,
+  "applied_seq": 6,
+  "applied_event_seq": 0,
+  "event_push_cursor": 0,
+  "offline": false,
+  "files": {
+    "doc.txt": {
+      "hash": "b17cfaf4dd38a2a78b84bd311898c431b7d5da64f3742c138478cbe0cc2756b5",
+      "size": 16
+    },
+    "doc.txt.deleted-by-B-a7cd8274.json": {
+      "hash": "6230e24a119fa7000540c0bf6295915a2f7a5961f3d10a31df32e15df2aaf488",
+      "size": 317
+    },
+    "keep.txt": {
+      "hash": "8f024b8c2fd10c855f92e5f2fe7cdd62cb61a3855a3136b36a581843f5f6fdea",
+      "size": 20
+    },
+    "keep.txt.deleted-by-A-45b69387.json": {
+      "hash": "567574c6883789ae7420cc2ecba135e84100bc354140e08414d3ebf0e9489c07",
+      "size": 318
+    }
+  },
+  "pending_batches": {},
+  "conflicts": [
+    {
+      "path": "keep.txt",
+      "kind": "delete-edit",
+      "source_client": "A",
+      "source_batch": "batch-1795457612205-45b69387",
+      "remote_hash": "",
+      "local_hash": "8f024b8c2fd10c855f92e5f2fe7cdd62cb61a3855a3136b36a581843f5f6fdea",
+      "saved_as": "keep.txt.deleted-by-A-45b69387.json",
+      "marker": "keep.txt.deleted-by-A-45b69387.json",
+      "detected_at": "2026-11-23T18:13:32Z"
+    }
+  ]
+}

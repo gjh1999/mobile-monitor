@@ -1,0 +1,12 @@
+﻿{
+    "conflicts":  0,
+    "error":  "blob upload: 127.0.0.1:8730 (ç±äºç®æ è®¡ç®æºç§¯ææç»ï¼æ æ³è¿æ¥ã (os error 10061))",
+    "events_pulled":  0,
+    "events_pushed":  0,
+    "offline":  false,
+    "pending_push":  1,
+    "pulled":  0,
+    "pushed":  0,
+    "receipt_lost":  false,
+    "version":  1
+}
