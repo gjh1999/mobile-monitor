@@ -85,6 +85,43 @@ impl StateStore {
         Ok(StateStore { dir: dir.to_path_buf() })
     }
 
+    /// Exclusive access to one state directory: only one process (the
+    /// daemon, or one one-shot CLI) may own it at a time. A stale lock
+    /// from a killed process is reclaimed after checking that the PID
+    /// is no longer alive.
+    pub fn acquire_lock(&self, client_id: &str) -> Result<(), String> {
+        let path = self.dir.join(".lock");
+        match fs::read(&path) {
+            Ok(bytes) => {
+                let pid: u32 = String::from_utf8_lossy(&bytes)
+                    .trim()
+                    .split('|')
+                    .next()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                if pid > 0 && pid_alive(pid) {
+                    return Err(format!(
+                        "state dir {} is locked by PID {} (another daemon or CLI is using it)",
+                        self.dir.display(),
+                        pid
+                    ));
+                }
+                // Stale lock from a dead process: take it over.
+            }
+            Err(_) => {}
+        }
+        let content = format!("{}|{}", std::process::id(), client_id);
+        let _ = fs::remove_file(&path);
+        match fs::write(&path, content.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("cannot write lock: {}", e)),
+        }
+    }
+
+    pub fn release_lock(&self) {
+        let _ = fs::remove_file(self.dir.join(".lock"));
+    }
+
     fn snapshot_path(&self) -> PathBuf {
         self.dir.join("snapshot.json")
     }
@@ -244,4 +281,20 @@ pub fn sha256_hex(data: &[u8]) -> String {
         .iter()
         .map(|b| format!("{:02x}", b))
         .collect()
+}
+
+/// Is a Windows process with this PID still running? Uses tasklist,
+/// which ships with every Windows installation.
+fn pid_alive(pid: u32) -> bool {
+    let out = std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {}", pid), "/NH", "/FO", "CSV"])
+        .output();
+    match out {
+        Ok(o) => {
+            let s = String::from_utf8_lossy(&o.stdout);
+            // Filtered tasklist prints "INFO: ..." when there is no match.
+            s.contains(&pid.to_string()) && !s.contains("INFO:")
+        }
+        Err(_) => false,
+    }
 }

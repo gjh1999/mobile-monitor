@@ -83,7 +83,7 @@ fn main() {
     let mut eng = match Engine::open(Path::new(&state), &client_id, &server, Path::new(&project)) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("open state: {}", e);
+            eprintln!("open engine: {}", e);
             exit(1);
         }
     };
@@ -199,6 +199,7 @@ fn main() {
         }
         _ => usage(),
     }
+    eng.store.release_lock();
 }
 
 fn nonempty(s: Option<&String>) -> Option<&str> {

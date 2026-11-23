@@ -59,10 +59,13 @@ impl SyncReport {
 }
 
 impl Engine {
-    pub fn open(state_dir: &Path, client_id: &str, server_url: &str, project_dir: &Path) -> std::io::Result<Self> {
-        let store = StateStore::new(state_dir)?;
+    pub fn open(state_dir: &Path, client_id: &str, server_url: &str, project_dir: &Path) -> Result<Self, String> {
+        let store = StateStore::new(state_dir).map_err(|e| e.to_string())?;
+        store
+            .acquire_lock(client_id)
+            .map_err(|e| format!("state dir locked: {}", e))?;
         let snap = store.load(client_id, server_url, &project_dir.to_string_lossy());
-        fs::create_dir_all(project_dir)?;
+        fs::create_dir_all(project_dir).map_err(|e| e.to_string())?;
         Ok(Engine {
             snap,
             store,
