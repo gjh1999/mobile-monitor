@@ -477,7 +477,11 @@ impl Engine {
             }
         };
         if dirty {
-            if self.pending_has_delete(&path) {
+            // Local delete intent covers both an unconfirmed pending delete
+            // and a confirmed delete (our baseline for the path is gone
+            // while the remote edit builds on a pre-delete baseline).
+            let confirmed_delete_here = baseline.is_none() && disk_hash.is_none();
+            if self.pending_has_delete(&path) || confirmed_delete_here {
                 // Local delete intent vs remote edit: restore the readable
                 // remote content at the original path and present the local
                 // delete intent as a tombstone file.

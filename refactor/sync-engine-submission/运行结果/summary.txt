@@ -1,0 +1,56 @@
+﻿[
+    {
+        "case":  "U1-boot",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "U2-files",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "U3-events",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C1-conflict",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C2-delete-edit",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C3-fault",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C4-kill",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C5-segment-replay",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    },
+    {
+        "case":  "C6-pause",
+        "result":  "FAIL",
+        "error":  "The expression after \u0027\u0026\u0027 in a pipeline element produced an object that was not valid. It must result in a command name, a script block, or a CommandInfo object.",
+        "seconds":  0
+    }
+]
