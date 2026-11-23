@@ -4,6 +4,12 @@
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path -Parent $PSCommandPath) "lib.ps1")
 
+# Clean slate: these image names belong to this submission only, so killing
+# leftovers (e.g. from a crashed earlier run) cannot hurt anything else.
+taskkill /F /IM syncclient.exe 2>$null | Out-Null
+taskkill /F /IM server.exe 2>$null | Out-Null
+Start-Sleep -Milliseconds 500
+
 $cases = @(
     @{ Name = "U1-boot";        Script = "u1_boot.ps1" },
     @{ Name = "U2-files";       Script = "u2_files.ps1" },

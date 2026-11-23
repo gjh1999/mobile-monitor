@@ -2,7 +2,7 @@
     {
         "case":  "U1-boot",
         "result":  "PASS",
-        "seconds":  2.5
+        "seconds":  2.2
     },
     {
         "case":  "U2-files",
@@ -11,8 +11,7 @@
     },
     {
         "case":  "U3-events",
-        "result":  "FAIL",
-        "error":  "assertion failed: order and set of items identical after replay",
+        "result":  "PASS",
         "seconds":  1
     },
     {

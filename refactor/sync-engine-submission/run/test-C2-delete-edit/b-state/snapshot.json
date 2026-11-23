@@ -12,16 +12,16 @@
       "hash": "b17cfaf4dd38a2a78b84bd311898c431b7d5da64f3742c138478cbe0cc2756b5",
       "size": 16
     },
-    "doc.txt.deleted-by-B-822280b6.json": {
-      "hash": "e18d987b4b822f72694f39be386b1f47d37587f3acfa408330d590e8667df863",
+    "doc.txt.deleted-by-B-4ba3e748.json": {
+      "hash": "1ca7584254ecaae49eb46cd47564b98b22d4946f7a20df1cb733cbe094602e0a",
       "size": 317
     },
     "keep.txt": {
       "hash": "8f024b8c2fd10c855f92e5f2fe7cdd62cb61a3855a3136b36a581843f5f6fdea",
       "size": 20
     },
-    "keep.txt.deleted-by-A-d7209e86.json": {
-      "hash": "90c5455f5b4bb951c3a77fb29ee7d12eb1cc2d7129c507a6e8d4df992c9a5592",
+    "keep.txt.deleted-by-A-757768d4.json": {
+      "hash": "926bf3f9745b69a0127caffcc77e23317220d4ab4a3ddc6f0eea55fd4678dbb2",
       "size": 318
     }
   },
@@ -31,12 +31,12 @@
       "path": "keep.txt",
       "kind": "delete-edit",
       "source_client": "A",
-      "source_batch": "batch-1795457912262-d7209e86",
+      "source_batch": "batch-1795458008080-757768d4",
       "remote_hash": "",
       "local_hash": "8f024b8c2fd10c855f92e5f2fe7cdd62cb61a3855a3136b36a581843f5f6fdea",
-      "saved_as": "keep.txt.deleted-by-A-d7209e86.json",
-      "marker": "keep.txt.deleted-by-A-d7209e86.json",
-      "detected_at": "2026-11-23T18:18:32Z"
+      "saved_as": "keep.txt.deleted-by-A-757768d4.json",
+      "marker": "keep.txt.deleted-by-A-757768d4.json",
+      "detected_at": "2026-11-23T18:20:08Z"
     }
   ]
 }

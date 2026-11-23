@@ -13,21 +13,21 @@ Invoke-Step "U3.1 import full file on A, read turn on B" {
 
     $dump = Get-Json "http://127.0.0.1:8732/dump?thread=thread-weather&turn=turn-01&format=json"
     ($dump | ConvertTo-Json -Depth 6) | Out-File -Encoding utf8 (Join-Path $Case.Dir "b-dump-first.json")
-    $items = $dump.threads[0].turns[0].items
-    Assert-True ($items.Count -eq 4) "four logical records"
+    $script:items = @($dump.threads[0].turns[0].items)
+    Assert-True ($script:items.Count -eq 4) "four logical records"
 
-    Assert-True ($items[0].item_id -eq "u1" -and $items[0].kind -eq "user") "u1 is the user message"
-    Assert-True ($items[0].text -eq "计算读数的平均值。") "u1 text preserved verbatim"
-    Assert-True ($items[1].item_id -eq "c1" -and $items[1].kind -eq "tool_call") "c1 is the tool call"
-    Assert-True ($items[1].name -eq "sample.mean") "c1 tool name"
-    Assert-True ($items[1].call_id -eq "call-1") "c1 call id"
-    Assert-True (($items[1].arguments | ConvertTo-Json -Compress -Depth 4) -eq ((New-Object PSObject -Property @{values=@(18,22)} | ConvertTo-Json -Compress -Depth 4).Replace(' ',''))) ("c1 arguments are " + ($items[1].arguments | ConvertTo-Json -Compress))
-    Assert-True ($items[2].item_id -eq "r1" -and $items[2].kind -eq "tool_result") "r1 is the tool result"
-    Assert-True ($items[2].call_id -eq "call-1") "r1 associated to call-1 by call_id"
-    Assert-True ($items[2].result.mean -eq 20) "r1 result is mean 20"
-    Assert-True ($items[3].item_id -eq "a1" -and $items[3].kind -eq "assistant") "a1 is the assistant reply"
-    Assert-True ($items[3].done -eq $true) "a1 marked done"
-    Assert-True ($items[3].text -eq "平均值是 20。") "a1 deltas concatenated once"
+    Assert-True ($script:items[0].item_id -eq "u1" -and $script:items[0].kind -eq "user") "u1 is the user message"
+    Assert-True ($script:items[0].text -eq "计算读数的平均值。") "u1 text preserved verbatim"
+    Assert-True ($script:items[1].item_id -eq "c1" -and $script:items[1].kind -eq "tool_call") "c1 is the tool call"
+    Assert-True ($script:items[1].name -eq "sample.mean") "c1 tool name"
+    Assert-True ($script:items[1].call_id -eq "call-1") "c1 call id"
+    Assert-True (($script:items[1].arguments | ConvertTo-Json -Compress -Depth 4) -eq ((New-Object PSObject -Property @{values=@(18,22)} | ConvertTo-Json -Compress -Depth 4).Replace(' ',''))) ("c1 arguments are " + ($script:items[1].arguments | ConvertTo-Json -Compress))
+    Assert-True ($script:items[2].item_id -eq "r1" -and $script:items[2].kind -eq "tool_result") "r1 is the tool result"
+    Assert-True ($script:items[2].call_id -eq "call-1") "r1 associated to call-1 by call_id"
+    Assert-True ($script:items[2].result.mean -eq 20) "r1 result is mean 20"
+    Assert-True ($script:items[3].item_id -eq "a1" -and $script:items[3].kind -eq "assistant") "a1 is the assistant reply"
+    Assert-True ($script:items[3].done -eq $true) "a1 marked done"
+    Assert-True ($script:items[3].text -eq "平均值是 20。") "a1 deltas concatenated once"
 }
 
 Invoke-Step "U3.2 import the same file again, dump must be identical" {
@@ -40,7 +40,7 @@ Invoke-Step "U3.2 import the same file again, dump must be identical" {
     ($dump2 | ConvertTo-Json -Depth 6) | Out-File -Encoding utf8 (Join-Path $Case.Dir "b-dump-after-replay.json")
     $items2 = $dump2.threads[0].turns[0].items
     Assert-True ($items2.Count -eq 4) "still exactly four logical records"
-    $ids1 = (@($items) | ForEach-Object { $_.item_id }) -join ","
+    $ids1 = ($script:items | ForEach-Object { $_.item_id }) -join ","
     $ids2 = (@($items2) | ForEach-Object { $_.item_id }) -join ","
     Write-Host ("  DEBUG ids1=[" + $ids1 + "] ids2=[" + $ids2 + "]")
     Assert-True ($ids1 -eq $ids2) "order and set of items identical after replay"
