@@ -8,12 +8,12 @@
   "devices": {
     "A": {
       "last_pull_since": 0,
-      "last_seen_at": "2026-11-23T14:07:17.0337486Z",
+      "last_seen_at": "2026-11-23T14:09:57.7101444Z",
       "event_batches": 0
     },
     "B": {
       "last_pull_since": 0,
-      "last_seen_at": "2026-11-23T14:07:17.2456752Z",
+      "last_seen_at": "2026-11-23T14:09:57.6619472Z",
       "event_batches": 0
     }
   },
