@@ -494,9 +494,11 @@ func doConverge(timeout int) error {
 			}
 			pushed, _ := rep["pushed"].(float64)
 			pulled, _ := rep["pulled"].(float64)
-			confl, _ := rep["conflicts"].(float64)
 			pend, _ := rep["pending_push"].(float64)
-			if pushed > 0 || pulled > 0 || confl > 0 || pend > 0 {
+			// Conflicts are reported but do not block convergence: they are
+			// preserved-state records, not queued work. Timeout reporting
+			// below lists them explicitly.
+			if pushed > 0 || pulled > 0 || pend > 0 {
 				busy = true
 			}
 			b, _ := json.Marshal(rep)
