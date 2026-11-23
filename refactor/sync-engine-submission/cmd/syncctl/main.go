@@ -32,10 +32,12 @@ import (
 )
 
 const (
-	serverAddr = "127.0.0.1:8730"
-	serverURL  = "http://127.0.0.1:8730"
-	clientA    = "127.0.0.1:8731"
-	clientB    = "127.0.0.1:8732"
+	serverAddr   = "127.0.0.1:8730"
+	serverURL    = "http://127.0.0.1:8730"
+	clientAddrA  = "127.0.0.1:8731"
+	clientAddrB  = "127.0.0.1:8732"
+	clientAURL   = "http://127.0.0.1:8731"
+	clientBURL   = "http://127.0.0.1:8732"
 )
 
 type proc struct {
@@ -148,17 +150,17 @@ func procs(r string) map[string]proc {
 		},
 		"a": {
 			name: "a", exe: filepath.Join(bin, "syncclient.exe"),
-			args: []string{"launch", "--id", "A", "--listen", clientA, "--server", serverURL,
+			args: []string{"launch", "--id", "A", "--listen", clientAddrA, "--server", serverURL,
 				"--project", filepath.Join(r, "project-a"), "--state", filepath.Join(r, "a-state")},
 			pidFile: filepath.Join(r, "a.pid"), logFile: filepath.Join(r, "logs", "a.log"),
-			health: "http://" + clientA + "/status", spawnDir: r,
+			health: clientAURL + "/status", spawnDir: r,
 		},
 		"b": {
 			name: "b", exe: filepath.Join(bin, "syncclient.exe"),
-			args: []string{"launch", "--id", "B", "--listen", clientB, "--server", serverURL,
+			args: []string{"launch", "--id", "B", "--listen", clientAddrB, "--server", serverURL,
 				"--project", filepath.Join(r, "project-b"), "--state", filepath.Join(r, "b-state")},
 			pidFile: filepath.Join(r, "b.pid"), logFile: filepath.Join(r, "logs", "b.log"),
-			health: "http://" + clientB + "/status", spawnDir: r,
+			health: clientBURL + "/status", spawnDir: r,
 		},
 	}
 }
@@ -375,7 +377,7 @@ func doStatus(r string, wait bool, timeout int) error {
 				srv["version"], srv["commit_count"], srv["dup_hits"], srv["event_count"], faultArmed(srv))
 		}
 		for _, id := range []string{"a", "b"} {
-			cs, err := fetchClientStatus("http://" + map[string]string{"a": clientA, "b": clientB}[id])
+			cs, err := fetchClientStatus(map[string]string{"a": clientAURL, "b": clientBURL}[id])
 			if err != nil {
 				fmt.Printf("client %s: DOWN\n", strings.ToUpper(id))
 				converged = false
@@ -428,9 +430,9 @@ func doSync(who string) error {
 		return fmt.Errorf("sync requires a|b|all")
 	}
 	for _, id := range targets {
-		url := clientA
+		url := clientAURL
 		if id == "B" {
-			url = clientB
+			url = clientBURL
 		}
 		var rep map[string]any
 		if err := postJSON(url+"/sync", "{}", &rep, 25*time.Second); err != nil {
@@ -452,9 +454,9 @@ func doConverge(timeout int) error {
 		round++
 		busy := false
 		for _, id := range []string{"A", "B"} {
-			url := clientA
+			url := clientAURL
 			if id == "B" {
-				url = clientB
+				url = clientBURL
 			}
 			var rep map[string]any
 			if err := postJSON(url+"/sync", "{}", &rep, 25*time.Second); err != nil {
@@ -477,9 +479,9 @@ func doConverge(timeout int) error {
 		if time.Now().After(deadline) {
 			// Explicit report of what is still stuck, as the task requires.
 			for _, id := range []string{"A", "B"} {
-				url := clientA
+				url := clientAURL
 				if id == "B" {
-					url = clientB
+					url = clientBURL
 				}
 				if cs, err := fetchClientStatus(url); err == nil {
 					fmt.Printf("[converge] STILL PENDING on %s: changes=%d conflicts=%d\n",
