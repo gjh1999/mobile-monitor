@@ -40,8 +40,9 @@ Invoke-Step "U3.2 import the same file again, dump must be identical" {
     ($dump2 | ConvertTo-Json -Depth 6) | Out-File -Encoding utf8 (Join-Path $Case.Dir "b-dump-after-replay.json")
     $items2 = $dump2.threads[0].turns[0].items
     Assert-True ($items2.Count -eq 4) "still exactly four logical records"
-    $ids1 = ($items | ForEach-Object { $_.item_id }) -join ","
-    $ids2 = ($items2 | ForEach-Object { $_.item_id }) -join ","
+    $ids1 = (@($items) | ForEach-Object { $_.item_id }) -join ","
+    $ids2 = (@($items2) | ForEach-Object { $_.item_id }) -join ","
+    Write-Host ("  DEBUG ids1=[" + $ids1 + "] ids2=[" + $ids2 + "]")
     Assert-True ($ids1 -eq $ids2) "order and set of items identical after replay"
     Assert-True ($items2[3].text -eq "平均值是 20。") "assistant text unchanged after replay"
 

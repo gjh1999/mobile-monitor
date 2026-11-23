@@ -12,11 +12,11 @@
       "hash": "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
       "size": 7
     },
-    "shared.txt.conflict-from-A-02400b7c": {
+    "shared.txt.conflict-from-A-0b6d9d74": {
       "hash": "c849c0c3fd4da5d0a82c6eb8619ff14d22d68e1c3307f434dc66209551a65d64",
       "size": 7
     },
-    "shared.txt.conflict-from-B-f125667f": {
+    "shared.txt.conflict-from-B-76c4535d": {
       "hash": "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
       "size": 7
     }
@@ -27,12 +27,12 @@
       "path": "shared.txt",
       "kind": "edit-edit",
       "source_client": "A",
-      "source_batch": "batch-1795457815877-02400b7c",
+      "source_batch": "batch-1795457908729-0b6d9d74",
       "remote_hash": "c849c0c3fd4da5d0a82c6eb8619ff14d22d68e1c3307f434dc66209551a65d64",
       "local_hash": "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
-      "saved_as": "shared.txt.conflict-from-A-02400b7c",
+      "saved_as": "shared.txt.conflict-from-A-0b6d9d74",
       "marker": "",
-      "detected_at": "2026-11-23T18:16:55Z"
+      "detected_at": "2026-11-23T18:18:28Z"
     }
   ]
 }

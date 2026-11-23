@@ -2,7 +2,7 @@
     {
         "case":  "U1-boot",
         "result":  "PASS",
-        "seconds":  2.6
+        "seconds":  2.5
     },
     {
         "case":  "U2-files",
