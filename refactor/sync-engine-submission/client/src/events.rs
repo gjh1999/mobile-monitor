@@ -153,25 +153,22 @@ pub fn build_view(events: &[Value]) -> Vec<Thread> {
             "tool.result" => {
                 let call_id = ev.get("call_id").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 let result = ev.get("result").cloned();
-                // Attach to the call item when present (association by call_id);
-                // otherwise keep as a standalone item so nothing is lost.
-                if let Some(&idx) = turn.by_call.get(&call_id) {
-                    turn.items[idx].result = result;
-                } else {
-                    turn.items.push(TurnItem {
-                        item_id: item.clone(),
-                        first_seq: seq,
-                        kind: "tool_result".into(),
-                        text: String::new(),
-                        call_id: String::new(),
-                        tool_name: String::new(),
-                        arguments: None,
-                        result,
-                        result_call_id: call_id,
-                        done: false,
-                    });
-                    turn.by_item.insert(item, turn.items.len() - 1);
-                }
+                // Keep every tool.result as its own logical item (task-book
+                // table lists r1 as a separate record) associated to its
+                // call through call_id.
+                turn.items.push(TurnItem {
+                    item_id: item.clone(),
+                    first_seq: seq,
+                    kind: "tool_result".into(),
+                    text: String::new(),
+                    call_id: String::new(),
+                    tool_name: String::new(),
+                    arguments: None,
+                    result,
+                    result_call_id: call_id,
+                    done: false,
+                });
+                turn.by_item.insert(item, turn.items.len() - 1);
             }
             "assistant.delta" => {
                 let text = ev.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string();
