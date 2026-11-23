@@ -29,13 +29,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-all.ps1
 
 ## 3. 公开验收 U1–U3
 
-用例根目录：`run/e2e-20261123-221507`
+用例根目录：`run/e2e-20261123-221622`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 ```
 
-结果：**27/27 断言通过**（`run/e2e-20261123-221507/e2e-result.json`）。
+结果：**27/27 断言通过**（`run/e2e-20261123-221622/e2e-result.json`）。
 
 覆盖内容：
 
@@ -64,13 +64,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 
 ## 4. 故障场景 F1–F3（提交自带）
 
-用例根目录：`run/fault-20261123-221420`
+用例根目录：`run/fault-20261123-221631`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1
 ```
 
-结果：**31/31 断言通过**（`run/fault-20261123-221420/e2e-fault-result.json`）。
+结果：**31/31 断言通过**（`run/fault-20261123-221631/e2e-fault-result.json`）。
 
 | 场景 | 验证点 | 结果 |
 |---|---|---|
