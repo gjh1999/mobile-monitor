@@ -1,0 +1,56 @@
+﻿{
+    "applied_ops":  6,
+    "conflicts":  null,
+    "created_at":  "2026-11-23T14:03:00.4935555Z",
+    "devices":  {
+                    "A":  {
+                              "last_pull_since":  6,
+                              "last_seen_at":  "2026-11-23T14:03:08.1188339Z",
+                              "last_event_at":  "2026-11-23T14:03:07.2147535Z",
+                              "event_batches":  2
+                          },
+                    "B":  {
+                              "last_pull_since":  6,
+                              "last_seen_at":  "2026-11-23T14:03:08.2524164Z",
+                              "event_batches":  0
+                          }
+                },
+    "events_total":  6,
+    "fault":  {
+                  "drop_next_commit_ack":  false
+              },
+    "fault_log":  null,
+    "files":  {
+                  "data/readings.txt":  {
+                                            "deleted":  true,
+                                            "device_id":  "B",
+                                            "op_id":  "B-ec145736f7569e444a31ef2f93ceee27",
+                                            "prior_hash":  "91060fb970dfca0cfcd6a2d582a6139378ea385e8b6c5268a59a970cb9fd78f3",
+                                            "updated_at":  "2026-11-23T14:03:06.358892Z",
+                                            "version":  4
+                                        },
+                  "data/week.txt":  {
+                                        "deleted":  true,
+                                        "device_id":  "A",
+                                        "op_id":  "A-49b3b2d35eadcc744a804fcfacd14f8b",
+                                        "prior_hash":  "91060fb970dfca0cfcd6a2d582a6139378ea385e8b6c5268a59a970cb9fd78f3",
+                                        "updated_at":  "2026-11-23T14:03:06.8852451Z",
+                                        "version":  6
+                                    },
+                  "summary.py":  {
+                                     "deleted":  false,
+                                     "device_id":  "A",
+                                     "hash":  "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
+                                     "op_id":  "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+                                     "updated_at":  "2026-11-23T14:03:05.2557616Z",
+                                     "version":  2
+                                 }
+              },
+    "live_files":  1,
+    "next_version":  7,
+    "ok":  true,
+    "op_log_len":  6,
+    "server_seq":  6,
+    "service":  "coordinator",
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\e2e-20261123-220259\\server-state"
+}

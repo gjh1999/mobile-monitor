@@ -1,0 +1,47 @@
+﻿{
+    "applied_ops":  2,
+    "conflicts":  null,
+    "created_at":  "2026-11-23T14:03:00.4935555Z",
+    "devices":  {
+                    "A":  {
+                              "last_pull_since":  2,
+                              "last_seen_at":  "2026-11-23T14:03:05.58255Z",
+                              "event_batches":  0
+                          },
+                    "B":  {
+                              "last_pull_since":  0,
+                              "last_seen_at":  "2026-11-23T14:03:05.3777076Z",
+                              "event_batches":  0
+                          }
+                },
+    "events_total":  0,
+    "fault":  {
+                  "drop_next_commit_ack":  false
+              },
+    "fault_log":  null,
+    "files":  {
+                  "data/readings.txt":  {
+                                            "deleted":  false,
+                                            "device_id":  "A",
+                                            "hash":  "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
+                                            "op_id":  "A-09619560e20b2435a3da374e83407e77",
+                                            "updated_at":  "2026-11-23T14:03:05.1903094Z",
+                                            "version":  1
+                                        },
+                  "summary.py":  {
+                                     "deleted":  false,
+                                     "device_id":  "A",
+                                     "hash":  "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
+                                     "op_id":  "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+                                     "updated_at":  "2026-11-23T14:03:05.2557616Z",
+                                     "version":  2
+                                 }
+              },
+    "live_files":  2,
+    "next_version":  3,
+    "ok":  true,
+    "op_log_len":  2,
+    "server_seq":  2,
+    "service":  "coordinator",
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\e2e-20261123-220259\\server-state"
+}

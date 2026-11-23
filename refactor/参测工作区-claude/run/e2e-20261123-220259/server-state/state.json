@@ -1,0 +1,217 @@
+{
+  "next_version": 7,
+  "files": {
+    "data/readings.txt": {
+      "version": 4,
+      "deleted": true,
+      "prior_hash": "91060fb970dfca0cfcd6a2d582a6139378ea385e8b6c5268a59a970cb9fd78f3",
+      "op_id": "B-ec145736f7569e444a31ef2f93ceee27",
+      "device_id": "B",
+      "updated_at": "2026-11-23T14:03:06.358892Z"
+    },
+    "data/week.txt": {
+      "version": 6,
+      "deleted": true,
+      "prior_hash": "91060fb970dfca0cfcd6a2d582a6139378ea385e8b6c5268a59a970cb9fd78f3",
+      "op_id": "A-49b3b2d35eadcc744a804fcfacd14f8b",
+      "device_id": "A",
+      "updated_at": "2026-11-23T14:03:06.8852451Z"
+    },
+    "summary.py": {
+      "version": 2,
+      "deleted": false,
+      "hash": "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
+      "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+      "device_id": "A",
+      "updated_at": "2026-11-23T14:03:05.2557616Z"
+    }
+  },
+  "applied_ops": {
+    "A-09619560e20b2435a3da374e83407e77": {
+      "version": 1,
+      "result": "applied",
+      "path": "data/readings.txt",
+      "device_id": "A",
+      "base_version": 0,
+      "at": "2026-11-23T14:03:05.1903094Z"
+    },
+    "A-49b3b2d35eadcc744a804fcfacd14f8b": {
+      "version": 6,
+      "result": "applied",
+      "path": "data/week.txt",
+      "device_id": "A",
+      "base_version": 5,
+      "at": "2026-11-23T14:03:06.8852451Z"
+    },
+    "A-8f8bc5c312f60b6b498bab7a6a1c3556": {
+      "version": 2,
+      "result": "applied",
+      "path": "summary.py",
+      "device_id": "A",
+      "base_version": 0,
+      "at": "2026-11-23T14:03:05.2557616Z"
+    },
+    "A-d7aa77d6e1ece8812a693d7f43582441": {
+      "version": 3,
+      "result": "applied",
+      "path": "data/readings.txt",
+      "device_id": "A",
+      "base_version": 1,
+      "at": "2026-11-23T14:03:05.8969998Z"
+    },
+    "B-6ec858f026f41b0418a27054d8de56b7": {
+      "version": 5,
+      "result": "applied",
+      "path": "data/week.txt",
+      "device_id": "B",
+      "base_version": 0,
+      "at": "2026-11-23T14:03:06.370648Z"
+    },
+    "B-ec145736f7569e444a31ef2f93ceee27": {
+      "version": 4,
+      "result": "applied",
+      "path": "data/readings.txt",
+      "device_id": "B",
+      "base_version": 3,
+      "at": "2026-11-23T14:03:06.358892Z"
+    }
+  },
+  "op_log": [
+    {
+      "op_id": "A-09619560e20b2435a3da374e83407e77",
+      "device_id": "A",
+      "path": "data/readings.txt",
+      "base_version": 0,
+      "version": 1,
+      "result": "applied",
+      "at": "2026-11-23T14:03:05.1903094Z"
+    },
+    {
+      "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+      "device_id": "A",
+      "path": "summary.py",
+      "base_version": 0,
+      "version": 2,
+      "result": "applied",
+      "at": "2026-11-23T14:03:05.2557616Z"
+    },
+    {
+      "op_id": "A-d7aa77d6e1ece8812a693d7f43582441",
+      "device_id": "A",
+      "path": "data/readings.txt",
+      "base_version": 1,
+      "version": 3,
+      "result": "applied",
+      "at": "2026-11-23T14:03:05.8969998Z"
+    },
+    {
+      "op_id": "B-ec145736f7569e444a31ef2f93ceee27",
+      "device_id": "B",
+      "path": "data/readings.txt",
+      "base_version": 3,
+      "version": 4,
+      "result": "applied",
+      "at": "2026-11-23T14:03:06.358892Z"
+    },
+    {
+      "op_id": "B-6ec858f026f41b0418a27054d8de56b7",
+      "device_id": "B",
+      "path": "data/week.txt",
+      "base_version": 0,
+      "version": 5,
+      "result": "applied",
+      "at": "2026-11-23T14:03:06.370648Z"
+    },
+    {
+      "op_id": "A-49b3b2d35eadcc744a804fcfacd14f8b",
+      "device_id": "A",
+      "path": "data/week.txt",
+      "base_version": 5,
+      "version": 6,
+      "result": "applied",
+      "at": "2026-11-23T14:03:06.8852451Z"
+    }
+  ],
+  "conflicts": null,
+  "events": {
+    "demo-1": {
+      "event_id": "demo-1",
+      "item_id": "u1",
+      "seq": 1,
+      "text": "计算读数的平均值。",
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "user.message"
+    },
+    "demo-2": {
+      "arguments": {
+        "values": [
+          18,
+          22
+        ]
+      },
+      "call_id": "call-1",
+      "event_id": "demo-2",
+      "item_id": "c1",
+      "name": "sample.mean",
+      "seq": 2,
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "tool.call"
+    },
+    "demo-3": {
+      "call_id": "call-1",
+      "event_id": "demo-3",
+      "item_id": "r1",
+      "result": {
+        "mean": 20
+      },
+      "seq": 3,
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "tool.result"
+    },
+    "demo-4": {
+      "event_id": "demo-4",
+      "item_id": "a1",
+      "seq": 4,
+      "text": "平均值是 ",
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "assistant.delta"
+    },
+    "demo-5": {
+      "event_id": "demo-5",
+      "item_id": "a1",
+      "seq": 5,
+      "text": "20。",
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "assistant.delta"
+    },
+    "demo-6": {
+      "event_id": "demo-6",
+      "item_id": "a1",
+      "seq": 6,
+      "thread_id": "thread-weather",
+      "turn_id": "turn-01",
+      "type": "assistant.done"
+    }
+  },
+  "devices": {
+    "A": {
+      "last_pull_since": 6,
+      "last_seen_at": "2026-11-23T14:03:08.4292421Z",
+      "last_event_at": "2026-11-23T14:03:07.2147535Z",
+      "event_batches": 2
+    },
+    "B": {
+      "last_pull_since": 6,
+      "last_seen_at": "2026-11-23T14:03:08.2524164Z",
+      "event_batches": 0
+    }
+  },
+  "fault_drop_next_commit_ack": false,
+  "fault_log": null,
+  "created_at": "2026-11-23T14:03:00.4935555Z"
+}

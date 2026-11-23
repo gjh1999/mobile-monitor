@@ -1,0 +1,144 @@
+﻿{
+    "run_root":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\e2e-20261123-220259",
+    "finished_at":  "2026-11-23T22:03:09.5437219+08:00",
+    "fatal":  null,
+    "passed":  27,
+    "failed":  0,
+    "assertions":  [
+                       {
+                           "name":  "U1 coordinator healthy",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 client A healthy",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 client B healthy",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 project A starts empty",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 project B starts empty",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 three roles restart with same state dirs",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U1 restart keeps both projects empty",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 initial copy reaches B byte-identically",
+                           "pass":  true,
+                           "detail":  "A=748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3 B=748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3"
+                       },
+                       {
+                           "name":  "U2 initial queue converged",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 append on A propagates to B",
+                           "pass":  true,
+                           "detail":  "B=91060fb970dfca0cfcd6a2d582a6139378ea385e8b6c5268a59a970cb9fd78f3"
+                       },
+                       {
+                           "name":  "U2 append queue converged",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 rename on B reaches A",
+                           "pass":  true,
+                           "detail":  "A week=True A readings=False"
+                       },
+                       {
+                           "name":  "U2 rename queue converged",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 delete on A removes new path on both ends",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 final queue converged",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U2 summary.py untouched on both ends",
+                           "pass":  true,
+                           "detail":  "source=bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169 A=bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169 B=bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169"
+                       },
+                       {
+                           "name":  "U3 first import accepts all six events",
+                           "pass":  true,
+                           "detail":  "{\"accepted\":6,\"duplicates\":0,\"end_line\":6,\"event_lines\":6,\"file\":\"D:\\\\VscodeProject\\\\codexDesk\\\\mobile-monitor\\\\refactor\\\\参测工作区-claude\\\\公开事件.jsonl\",\"ok\":true,\"server_total\":6,\"start_line\":1,\"threads\":[\"thread-weather\"]}"
+                       },
+                       {
+                           "name":  "U3 B shows four logical items",
+                           "pass":  true,
+                           "detail":  "items=4"
+                       },
+                       {
+                           "name":  "U3 user message",
+                           "pass":  true,
+                           "detail":  "{\"item_id\":\"u1\",\"text\":\"计算读数的平均值。\",\"type\":\"user.message\"}"
+                       },
+                       {
+                           "name":  "U3 tool call fields",
+                           "pass":  true,
+                           "detail":  "{\"arguments\":{\"values\":[18,22]},\"call_id\":\"call-1\",\"item_id\":\"c1\",\"name\":\"sample.mean\",\"type\":\"tool.call\"}"
+                       },
+                       {
+                           "name":  "U3 tool result association",
+                           "pass":  true,
+                           "detail":  "{\"call_id\":\"call-1\",\"item_id\":\"r1\",\"result\":{\"mean\":20},\"type\":\"tool.result\"}"
+                       },
+                       {
+                           "name":  "U3 assistant completed text",
+                           "pass":  true,
+                           "detail":  "{\"item_id\":\"a1\",\"status\":\"completed\",\"text\":\"平均值是 20。\",\"type\":\"assistant\"}"
+                       },
+                       {
+                           "name":  "U3 second import is fully deduplicated",
+                           "pass":  true,
+                           "detail":  "{\"accepted\":0,\"duplicates\":6,\"end_line\":6,\"event_lines\":6,\"file\":\"D:\\\\VscodeProject\\\\codexDesk\\\\mobile-monitor\\\\refactor\\\\参测工作区-claude\\\\公开事件.jsonl\",\"ok\":true,\"server_total\":6,\"start_line\":1,\"threads\":[\"thread-weather\"]}"
+                       },
+                       {
+                           "name":  "U3 replay keeps item count, order, association and text",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U3 read-only replay reports zero tool dispatch",
+                           "pass":  true,
+                           "detail":  "{\"history\":{\"items\":[{\"item_id\":\"u1\",\"text\":\"计算读数的平均值。\",\"type\":\"user.message\"},{\"arguments\":{\"values\":[18,22]},\"call_id\":\"call-1\",\"item_id\":\"c1\",\"name\":\"sample.mean\",\"type\":\"tool.call\"},{\"call_id\":\"call-1\",\"item_id\":\"r1\",\"result\":{\"mean\":20},\"type\":\"tool.result\"},{\"item_id\":\"a1\",\"status\":\"completed\",\"text\":\"平均值是 20。\",\"type\":\"assistant\"}],\"source\":\"server\",\"thread_id\":\"thread-weather\",\"turn_id\":\"turn-01\"},\"note\":\"tool.call and tool.result events are rendered as history only; this client has no tool executor\",\"replay_mode\":\"read-only-projection\",\"tool_call_items_observed\":1,\"tool_dispatch_attempts\":0}"
+                       },
+                       {
+                           "name":  "U3 no tool side-effect file exists",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "U3 history is identical after B restart",
+                           "pass":  true,
+                           "detail":  ""
+                       }
+                   ]
+}

@@ -1,0 +1,128 @@
+{
+  "device_id": "A",
+  "base": {
+    "data/readings.txt": {
+      "version": 4,
+      "deleted": true,
+      "hash": ""
+    },
+    "data/week.txt": {
+      "version": 6,
+      "deleted": true,
+      "hash": ""
+    },
+    "summary.py": {
+      "version": 2,
+      "deleted": false,
+      "hash": "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169"
+    }
+  },
+  "last_seen_version": 6,
+  "paused": false,
+  "inflight": null,
+  "awaiting": null,
+  "receipt_log": [],
+  "conflicts": [],
+  "imports": [
+    {
+      "accepted": 6,
+      "at": "1795442587172",
+      "duplicates": 0,
+      "end_line": 6,
+      "event_lines": 6,
+      "file": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\公开事件.jsonl",
+      "server_total": 6,
+      "start_line": 1,
+      "status": "ok",
+      "threads": [
+        "thread-weather"
+      ]
+    },
+    {
+      "accepted": 0,
+      "at": "1795442587219",
+      "duplicates": 6,
+      "end_line": 6,
+      "event_lines": 6,
+      "file": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\公开事件.jsonl",
+      "server_total": 6,
+      "start_line": 1,
+      "status": "ok",
+      "threads": [
+        "thread-weather"
+      ]
+    }
+  ],
+  "pending_imports": [],
+  "event_cache": {
+    "thread-weather": [
+      {
+        "event_id": "demo-1",
+        "item_id": "u1",
+        "seq": 1,
+        "text": "计算读数的平均值。",
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "user.message"
+      },
+      {
+        "arguments": {
+          "values": [
+            18,
+            22
+          ]
+        },
+        "call_id": "call-1",
+        "event_id": "demo-2",
+        "item_id": "c1",
+        "name": "sample.mean",
+        "seq": 2,
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "tool.call"
+      },
+      {
+        "call_id": "call-1",
+        "event_id": "demo-3",
+        "item_id": "r1",
+        "result": {
+          "mean": 20
+        },
+        "seq": 3,
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "tool.result"
+      },
+      {
+        "event_id": "demo-4",
+        "item_id": "a1",
+        "seq": 4,
+        "text": "平均值是 ",
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "demo-5",
+        "item_id": "a1",
+        "seq": 5,
+        "text": "20。",
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "demo-6",
+        "item_id": "a1",
+        "seq": 6,
+        "thread_id": "thread-weather",
+        "turn_id": "turn-01",
+        "type": "assistant.done"
+      }
+    ]
+  },
+  "tool_dispatch_attempts": 0,
+  "created_at": "1795442581102",
+  "last_sync_at": "1795442587219",
+  "sync_errors": []
+}

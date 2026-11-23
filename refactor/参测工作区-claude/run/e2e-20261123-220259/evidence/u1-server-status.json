@@ -1,0 +1,32 @@
+﻿{
+    "applied_ops":  0,
+    "conflicts":  null,
+    "created_at":  "2026-11-23T14:03:00.4935555Z",
+    "devices":  {
+                    "A":  {
+                              "last_pull_since":  0,
+                              "last_seen_at":  "2026-11-23T14:03:02.0408345Z",
+                              "event_batches":  0
+                          },
+                    "B":  {
+                              "last_pull_since":  0,
+                              "last_seen_at":  "2026-11-23T14:03:01.9537483Z",
+                              "event_batches":  0
+                          }
+                },
+    "events_total":  0,
+    "fault":  {
+                  "drop_next_commit_ack":  false
+              },
+    "fault_log":  null,
+    "files":  {
+
+              },
+    "live_files":  0,
+    "next_version":  1,
+    "ok":  true,
+    "op_log_len":  0,
+    "server_seq":  0,
+    "service":  "coordinator",
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\e2e-20261123-220259\\server-state"
+}
