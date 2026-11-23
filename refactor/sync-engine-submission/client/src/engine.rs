@@ -437,6 +437,8 @@ impl Engine {
             if dirty {
                 // Remote delete vs local work: keep the readable local
                 // content and present the delete intent as a tombstone.
+                // The tombstone file is NOT added to the baseline: the next
+                // scan discovers it and provisions it for propagation.
                 let marker = format!("{}.deleted-by-{}-{}.json", path, src_client, short(&src_batch));
                 let tomb = json!({
                     "note": "DELETE-INTENT TOMBSTONE: the remote client deleted this file while this machine had local changes. The original path keeps the readable local content.",
@@ -447,14 +449,12 @@ impl Engine {
                     "client": self.client_id,
                 });
                 let _ = self.write_project_file(&marker, serde_json::to_vec_pretty(&tomb).unwrap().as_slice());
-                let tomb_hash = self
-                    .disk_bytes(&marker)
-                    .map(|d| store::sha256_hex(&d))
-                    .unwrap_or_default();
-                let tomb_size = self.disk_bytes(&marker).map(|d| d.len()).unwrap_or(0) as u64;
-                self.snap.files.insert(marker.clone(), FileEntry { hash: tomb_hash, size: tomb_size });
                 self.record_conflict(&path, "delete-edit", &src_client, &src_batch, "", &baseline.unwrap_or_default(), "", &marker);
                 self.withdraw_pending(&path);
+                // Keep the snapshot's baseline for the original path as it
+                // was provisioned locally (do not apply the remote delete),
+                // so the local content stays and the file is not re-pushed
+                // as a delete by the next scan.
             } else {
                 self.remove_project_file(&path);
                 self.snap.files.remove(&path);
@@ -477,17 +477,43 @@ impl Engine {
             }
         };
         if dirty {
-            // Concurrent edit: keep local content at the original path,
-            // save the remote content under a conflict file. Both readable.
-            let cpath = format!("{}.conflict-from-{}-{}", path, src_client, short(&src_batch));
-            let _ = self.write_project_file(&cpath, &data);
-            let ch = store::sha256_hex(&data);
-            self.snap.files.insert(
-                cpath.clone(),
-                FileEntry { hash: ch, size: data.len() as u64 },
-            );
-            self.record_conflict(&path, "edit-edit", &src_client, &src_batch, &remote_hash, &baseline.unwrap_or_default(), &remote_hash, &cpath);
-            self.withdraw_pending(&path);
+            if self.pending_has_delete(&path) {
+                // Local delete intent vs remote edit: restore the readable
+                // remote content at the original path and present the local
+                // delete intent as a tombstone file.
+                let _ = self.write_project_file(&path, &data);
+                let marker = format!("{}.deleted-here-{}.json", path, short(&src_batch));
+                let tomb = json!({
+                    "note": "DELETE-INTENT TOMBSTONE: this machine deleted the file locally while the remote client edited it. The original path now holds the readable remote edit.",
+                    "deleted_here_batch": src_batch,
+                    "edited_by": src_client,
+                    "path": path,
+                    "detected_at": store::now_rfc3339(),
+                    "client": self.client_id,
+                });
+                let _ = self.write_project_file(&marker, serde_json::to_vec_pretty(&tomb).unwrap().as_slice());
+                self.record_conflict(&path, "delete-here-edit-remote", &src_client, &src_batch, &remote_hash, "", &remote_hash, &marker);
+                self.withdraw_pending(&path);
+                // Baseline follows the restored remote content; the tombstone
+                // file is picked up by the next scan and propagates.
+                self.snap.files.insert(
+                    path,
+                    FileEntry { hash: remote_hash.clone(), size: data.len() as u64 },
+                );
+            } else {
+                // Concurrent edit: keep local content at the original path,
+                // save the remote content under a conflict file. Both readable.
+                // The conflict file is NOT added to the baseline here; the next
+                // scan provisions it so it propagates to the other side.
+                let cpath = format!("{}.conflict-from-{}-{}", path, src_client, short(&src_batch));
+                let _ = self.write_project_file(&cpath, &data);
+                self.record_conflict(&path, "edit-edit", &src_client, &src_batch, &remote_hash, &baseline.unwrap_or_default(), &remote_hash, &cpath);
+                self.withdraw_pending(&path);
+                // Baseline of the original path stays at the locally provisioned
+                // content: the remote version is presented in the conflict file,
+                // and the local version will not be re-pushed (which would ping-
+                // pong forever). Conflict resolution is explicit, by the user.
+            }
         } else {
             let _ = self.write_project_file(&path, &data);
             self.snap.files.insert(
@@ -517,6 +543,15 @@ impl Engine {
             .values()
             .any(|b| b.changes.iter().any(|c| {
                 c["path"].as_str() == Some(path) || c["from"].as_str() == Some(path)
+            }))
+    }
+
+    fn pending_has_delete(&self, path: &str) -> bool {
+        self.snap
+            .pending_batches
+            .values()
+            .any(|b| b.changes.iter().any(|c| {
+                c["op"].as_str() == Some("delete") && c["path"].as_str() == Some(path)
             }))
     }
 
