@@ -6,7 +6,6 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
 
-pub const MAX_BODY: usize = 256 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum HttpError {

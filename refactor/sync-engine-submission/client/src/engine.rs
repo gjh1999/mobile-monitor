@@ -80,10 +80,6 @@ impl Engine {
         }
     }
 
-    fn norm(rel: &Path) -> String {
-        rel.to_string_lossy().replace('\\', "/")
-    }
-
     // ---------------- scanning ----------------
 
     /// Read every file in the project (recursive), returning path (with /)
@@ -868,7 +864,3 @@ pub fn validate_event(v: &Value) -> Result<(), String> {
     Ok(())
 }
 
-// Re-export for main.rs convenience.
-pub use store::sha256_hex as sha_hex;
-
-pub type ChangeMap = Map<String, Value>;
