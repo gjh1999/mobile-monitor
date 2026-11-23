@@ -1,0 +1,20 @@
+=== RUN   TestPushIdempotentAndPull
+2026/11/23 21:57:39 COMMIT device=A path=data/readings.txt op=A-1 base=0 version=1 deleted=false hash=748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3
+--- PASS: TestPushIdempotentAndPull (0.03s)
+=== RUN   TestConflictRejected
+2026/11/23 21:57:39 COMMIT device=A path=f.txt op=A-1 base=0 version=1 deleted=false hash=2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806
+2026/11/23 21:57:39 CONFLICT device=B path=f.txt op=B-1 base=0 server=1 deleted=false
+--- PASS: TestConflictRejected (0.01s)
+=== RUN   TestFaultDropsSuccessResponseAndRetryDeduplicates
+2026/11/23 21:57:39 FAULT arm drop_next_commit_ack=true
+2026/11/23 21:57:39 COMMIT device=A path=notes/receipt.txt op=A-fault base=0 version=1 deleted=false hash=1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2
+2026/11/23 21:57:39 FAULT drop-ack fired op=A-fault path=notes/receipt.txt version=1
+--- PASS: TestFaultDropsSuccessResponseAndRetryDeduplicates (0.03s)
+=== RUN   TestEventsDeduplicateByEventID
+2026/11/23 21:57:39 EVENTS device=A accepted=2 duplicates=0 total=2
+2026/11/23 21:57:39 EVENTS device=A accepted=0 duplicates=2 total=2
+--- PASS: TestEventsDeduplicateByEventID (0.01s)
+=== RUN   TestInvalidPathRejected
+--- PASS: TestInvalidPathRejected (0.01s)
+PASS
+ok  	sync-server	1.449s
