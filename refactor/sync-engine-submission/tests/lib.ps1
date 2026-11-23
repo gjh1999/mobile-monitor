@@ -1,4 +1,4 @@
-# Shared helpers for the acceptance test cases. ASCII-only output so that
+﻿# Shared helpers for the acceptance test cases. ASCII-only output so that
 # Windows PowerShell 5.1 renders it identically regardless of codepage.
 $ErrorActionPreference = "Stop"
 
@@ -41,15 +41,18 @@ function Get-Sha {
 
 function Get-Json {
     param([string]$Url, [string]$Body = $null)
-    # PS 5.1 sends string bodies in ISO-8859-1, which mangles non-ASCII
-    # paths; always send UTF-8 bytes explicitly.
+    # PS 5.1 mangles non-ASCII twice: string request bodies are sent as
+    # ISO-8859-1, and responses without an explicit charset are decoded as
+    # ISO-8859-1 as well. Send UTF-8 bytes and decode the raw stream as
+    # UTF-8 explicitly on both directions.
     if ($Body) {
         $bytes = [Text.Encoding]::UTF8.GetBytes($Body)
         $resp = Invoke-WebRequest -UseBasicParsing -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes -Uri $Url -TimeoutSec 30
     } else {
         $resp = Invoke-WebRequest -UseBasicParsing -Method GET -Uri $Url -TimeoutSec 30
     }
-    return ($resp.Content | ConvertFrom-Json)
+    $text = [Text.Encoding]::UTF8.GetString($resp.RawContentStream.ToArray())
+    return ($text | ConvertFrom-Json)
 }
 
 function Wait-Converge {

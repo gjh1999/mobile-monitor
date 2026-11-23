@@ -1,4 +1,4 @@
-# C4: hard-kill each process, restore it on the same data dir, verify
+﻿# C4: hard-kill each process, restore it on the same data dir, verify
 # recovery and continued convergence.
 param([hashtable]$Case)
 

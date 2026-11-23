@@ -2,12 +2,12 @@
     {
         "case":  "U1-boot",
         "result":  "PASS",
-        "seconds":  2.2
+        "seconds":  2.4
     },
     {
         "case":  "U2-files",
         "result":  "PASS",
-        "seconds":  2.1
+        "seconds":  2.2
     },
     {
         "case":  "U3-events",
@@ -22,8 +22,7 @@
     },
     {
         "case":  "C2-delete-edit",
-        "result":  "FAIL",
-        "error":  "assertion failed: A tombstone presents the local delete intent",
+        "result":  "PASS",
         "seconds":  2.7
     },
     {

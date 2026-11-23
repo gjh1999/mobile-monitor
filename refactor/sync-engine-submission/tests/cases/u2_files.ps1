@@ -1,4 +1,4 @@
-# U2: file round trip with byte-exact hashes per the public test spec.
+﻿# U2: file round trip with byte-exact hashes per the public test spec.
 param([hashtable]$Case)
 
 $projA = Join-Path $Case.Root "project-a"

@@ -1,4 +1,4 @@
-# Master test runner: runs every acceptance case in its own fresh run
+﻿# Master test runner: runs every acceptance case in its own fresh run
 # root and writes per-case evidence under 运行结果\<case>\.
 # Usage:  powershell -ExecutionPolicy Bypass -File tests\run_all.ps1
 $ErrorActionPreference = "Stop"

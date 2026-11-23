@@ -1,4 +1,4 @@
-# C6: pause/resume. Paused client refuses network I/O, keeps its local
+﻿# C6: pause/resume. Paused client refuses network I/O, keeps its local
 # changes recoverable, and reports pending work explicitly.
 param([hashtable]$Case)
 

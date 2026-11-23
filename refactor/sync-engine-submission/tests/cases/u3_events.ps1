@@ -1,4 +1,4 @@
-# U3: full message turn + replayed import idempotency.
+﻿# U3: full message turn + replayed import idempotency.
 param([hashtable]$Case)
 
 & $Script:SYNCCTL up --root $Case.Root --fresh 2>&1 | Out-File -FilePath (Join-Path $Case.Dir "up.log")

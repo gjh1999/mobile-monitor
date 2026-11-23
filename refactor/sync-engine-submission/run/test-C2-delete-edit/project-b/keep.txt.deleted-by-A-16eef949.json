@@ -1,8 +1,8 @@
 {
-  "client": "A",
-  "deleted_batch": "batch-1795457611251-a7cd8274",
-  "deleted_by": "B",
-  "detected_at": "2026-11-23T18:13:31Z",
+  "client": "B",
+  "deleted_batch": "batch-1795457761226-16eef949",
+  "deleted_by": "A",
+  "detected_at": "2026-11-23T18:16:01Z",
   "note": "DELETE-INTENT TOMBSTONE: the remote client deleted this file while this machine had local changes. The original path keeps the readable local content.",
-  "path": "doc.txt"
+  "path": "keep.txt"
 }

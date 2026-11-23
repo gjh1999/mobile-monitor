@@ -1,4 +1,4 @@
-# C3: receipt-loss fault injection. The server durably commits, then drops
+﻿# C3: receipt-loss fault injection. The server durably commits, then drops
 # the ack; the sender stays paused (no auto-retry) until the reviewer
 # triggers the retry, which hits the idempotent path: same version,
 # same commit count, one logical change.

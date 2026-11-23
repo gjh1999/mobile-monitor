@@ -1,4 +1,4 @@
-# C5: line-range import of the event file, then read-only replay with an
+﻿# C5: line-range import of the event file, then read-only replay with an
 # observable call record (tools_dispatched == 0).
 param([hashtable]$Case)
 

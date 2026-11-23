@@ -1,4 +1,4 @@
-# C1: same-baseline edit/edit conflict preserves both readable contents.
+﻿# C1: same-baseline edit/edit conflict preserves both readable contents.
 param([hashtable]$Case)
 
 & $Script:SYNCCTL up --root $Case.Root --fresh 2>&1 | Out-File -FilePath (Join-Path $Case.Dir "up.log")

@@ -1,4 +1,4 @@
-# U1: boot from empty state, verify identities/paths, stop, restart on the
+﻿# U1: boot from empty state, verify identities/paths, stop, restart on the
 # same data dirs, verify all three roles work again.
 param([hashtable]$Case)
 

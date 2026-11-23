@@ -1,4 +1,4 @@
-# C2: remote delete vs local edit -> local content stays readable, delete
+﻿# C2: remote delete vs local edit -> local content stays readable, delete
 # intent presented as a tombstone. Also covers the mirror case: local
 # delete intent vs remote edit -> remote edit restored at original path,
 # local delete intent presented as a tombstone.
@@ -35,21 +35,33 @@ Invoke-Step "C2.3 delete intent and readable modification coexist on A" {
     Assert-True ($kinds -contains "delete-edit") "A conflict record kind delete-edit"
 }
 
-Invoke-Step "C2.4 local delete intent vs remote edit (mirror case)" {
-    # Reset to a known state on a fresh path: keep.txt exists everywhere.
+Invoke-Step "C2.4 delete intent vs remote edit racing on the same baseline" {
+    # keep.txt exists everywhere with baseline keep-v1. A deletes it and
+    # B edits it before either change reaches the other side: a concurrent
+    # delete-vs-edit conflict. Both must survive: B's readable edit at the
+    # original path (converged everywhere) plus a tombstone presenting
+    # A's delete intent.
     Set-Content -NoNewline (Join-Path $projA "keep.txt") -Value "keep-v1`n" -Encoding Ascii
     Wait-Converge $Case
-    # A deletes locally (pending, then confirmed push), then B edits the file
-    # from the pre-delete baseline. B's edit commit lands after A's delete.
     Remove-Item (Join-Path $projA "keep.txt")
     & $Script:SYNCCTL sync a 2>&1 | Out-File -FilePath (Join-Path $Case.Dir "sync-a-delete.log") -Append
     Set-Content -NoNewline (Join-Path $projB "keep.txt") -Value "B-edit-after-delete`n" -Encoding Ascii
     Wait-Converge $Case
     Wait-Converge $Case
 
-    Assert-True (Test-Path (Join-Path $projA "keep.txt")) "A restored the readable remote edit at the original path"
-    Assert-True ((Get-Content (Join-Path $projA "keep.txt") -Raw) -match "B-edit-after-delete") "A restored content matches B's edit"
-    $aTomb = Get-ChildItem (Join-Path $projA "keep.txt.deleted-here-*.json") | Select-Object -First 1
-    Assert-True ($null -ne $aTomb) "A tombstone presents the local delete intent"
-    Assert-True (Test-Path (Join-Path $projB "keep.txt")) "B keeps its edit"
+    Assert-True (Test-Path (Join-Path $projA "keep.txt")) "A ends up with the readable edit at the original path"
+    Assert-True ((Get-Content (Join-Path $projA "keep.txt") -Raw) -match "B-edit-after-delete") "A's copy carries B's edit"
+    Assert-True (Test-Path (Join-Path $projB "keep.txt")) "B keeps its edit at the original path"
+
+    $aTomb = Get-ChildItem (Join-Path $projA "keep.txt.deleted-by-*.json") | Select-Object -First 1
+    $bTomb = Get-ChildItem (Join-Path $projB "keep.txt.deleted-by-*.json") | Select-Object -First 1
+    Assert-True ($null -ne $aTomb) "delete-intent tombstone present on A"
+    Assert-True ($null -ne $bTomb) "delete-intent tombstone present on B"
+    $tomb = (Get-Content $bTomb.FullName -Raw | ConvertFrom-Json)
+    Assert-True ($tomb.deleted_by -eq "A") "tombstone names A as the deleting side"
+    ($tomb | ConvertTo-Json) | Out-File -Encoding utf8 (Join-Path $Case.Dir "tombstone-delete-vs-edit.json")
+
+    $cb = Get-Json "http://127.0.0.1:8732/conflicts"
+    $kinds = @($cb.conflicts | ForEach-Object { $_.kind })
+    Assert-True ($kinds -contains "delete-edit") "B conflict record kind delete-edit"
 }
