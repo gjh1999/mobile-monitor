@@ -1,0 +1,55 @@
+﻿{
+    "awaiting_confirmation":  null,
+    "conflict_count":  1,
+    "conflicts":  [
+                      {
+                          "detected_at":  "1795442746722",
+                          "device":  "B",
+                          "kind":  "remote-deleted-vs-local-modified",
+                          "local_conflict_path":  "data/readings.txt.conflict-B-v3",
+                          "local_deleted":  false,
+                          "local_hash":  "5e0bcdd059a560fb5cee284124be5d22891e6e184c3b4e0b37c9c7ca869983ed",
+                          "path":  "data/readings.txt",
+                          "prior_hash":  "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
+                          "resolution":  "remote state kept at original path; local content preserved in conflict copy when present",
+                          "server_deleted":  true,
+                          "server_hash":  "",
+                          "server_version":  3
+                      }
+                  ],
+    "created_at":  "1795442745248",
+    "device_id":  "B",
+    "imports":  [
+
+                ],
+    "inflight":  null,
+    "last_error":  null,
+    "last_seen_version":  3,
+    "last_sync_at":  "1795442746729",
+    "ok":  true,
+    "online":  true,
+    "paused":  false,
+    "pending":  [
+                    {
+                        "base_version":  0,
+                        "hash":  "5e0bcdd059a560fb5cee284124be5d22891e6e184c3b4e0b37c9c7ca869983ed",
+                        "kind":  "put",
+                        "op_id":  "B-af84c9a96b5043ba038cae77d4f0688b",
+                        "path":  "data/readings.txt.conflict-B-v3"
+                    }
+                ],
+    "pending_count":  1,
+    "pending_imports":  [
+
+                        ],
+    "project_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H1\\project-b",
+    "queue_empty":  false,
+    "receipt_log":  [
+
+                    ],
+    "retry_blocked":  false,
+    "server":  "http://127.0.0.1:52753",
+    "server_seq":  3,
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H1\\state-b",
+    "tool_dispatch_attempts":  0
+}

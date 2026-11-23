@@ -1,0 +1,139 @@
+{
+  "next_version": 5,
+  "files": {
+    "data/readings.txt": {
+      "version": 3,
+      "deleted": true,
+      "prior_hash": "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
+      "op_id": "A-c0c25c171c1b93c4b3138fa31d3133ca",
+      "device_id": "A",
+      "updated_at": "2026-11-23T14:04:28.1138561Z"
+    },
+    "data/readings.txt.conflict-B-v3": {
+      "version": 4,
+      "deleted": false,
+      "hash": "5e0bcdd059a560fb5cee284124be5d22891e6e184c3b4e0b37c9c7ca869983ed",
+      "op_id": "B-af84c9a96b5043ba038cae77d4f0688b",
+      "device_id": "B",
+      "updated_at": "2026-11-23T14:04:28.5042993Z"
+    },
+    "summary.py": {
+      "version": 2,
+      "deleted": false,
+      "hash": "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
+      "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+      "device_id": "A",
+      "updated_at": "2026-11-23T14:04:27.4793503Z"
+    }
+  },
+  "applied_ops": {
+    "A-09619560e20b2435a3da374e83407e77": {
+      "version": 1,
+      "result": "applied",
+      "path": "data/readings.txt",
+      "device_id": "A",
+      "base_version": 0,
+      "at": "2026-11-23T14:04:27.464902Z"
+    },
+    "A-8f8bc5c312f60b6b498bab7a6a1c3556": {
+      "version": 2,
+      "result": "applied",
+      "path": "summary.py",
+      "device_id": "A",
+      "base_version": 0,
+      "at": "2026-11-23T14:04:27.4793503Z"
+    },
+    "A-c0c25c171c1b93c4b3138fa31d3133ca": {
+      "version": 3,
+      "result": "applied",
+      "path": "data/readings.txt",
+      "device_id": "A",
+      "base_version": 1,
+      "at": "2026-11-23T14:04:28.1138561Z"
+    },
+    "B-af84c9a96b5043ba038cae77d4f0688b": {
+      "version": 4,
+      "result": "applied",
+      "path": "data/readings.txt.conflict-B-v3",
+      "device_id": "B",
+      "base_version": 0,
+      "at": "2026-11-23T14:04:28.5042993Z"
+    }
+  },
+  "op_log": [
+    {
+      "op_id": "A-09619560e20b2435a3da374e83407e77",
+      "device_id": "A",
+      "path": "data/readings.txt",
+      "base_version": 0,
+      "version": 1,
+      "result": "applied",
+      "at": "2026-11-23T14:04:27.464902Z"
+    },
+    {
+      "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
+      "device_id": "A",
+      "path": "summary.py",
+      "base_version": 0,
+      "version": 2,
+      "result": "applied",
+      "at": "2026-11-23T14:04:27.4793503Z"
+    },
+    {
+      "op_id": "A-c0c25c171c1b93c4b3138fa31d3133ca",
+      "device_id": "A",
+      "path": "data/readings.txt",
+      "base_version": 1,
+      "version": 3,
+      "result": "applied",
+      "at": "2026-11-23T14:04:28.1138561Z"
+    },
+    {
+      "op_id": "B-1dfb29270b2a0914e597cc29cd955a48",
+      "device_id": "B",
+      "path": "data/readings.txt",
+      "base_version": 1,
+      "version": 3,
+      "result": "conflict",
+      "at": "2026-11-23T14:04:28.2354937Z",
+      "note": "base_version does not match current server version"
+    },
+    {
+      "op_id": "B-af84c9a96b5043ba038cae77d4f0688b",
+      "device_id": "B",
+      "path": "data/readings.txt.conflict-B-v3",
+      "base_version": 0,
+      "version": 4,
+      "result": "applied",
+      "at": "2026-11-23T14:04:28.5042993Z"
+    }
+  ],
+  "conflicts": [
+    {
+      "path": "data/readings.txt",
+      "device_id": "B",
+      "op_id": "B-1dfb29270b2a0914e597cc29cd955a48",
+      "base_version": 1,
+      "server_version": 3,
+      "server_deleted": true,
+      "server_hash": "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
+      "at": "2026-11-23T14:04:28.2354937Z"
+    }
+  ],
+  "events": {},
+  "devices": {
+    "A": {
+      "last_pull_since": 4,
+      "last_seen_at": "2026-11-23T14:04:30.2666074Z",
+      "event_batches": 0
+    },
+    "B": {
+      "last_pull_since": 4,
+      "last_seen_at": "2026-11-23T14:04:29.8795054Z",
+      "event_batches": 0
+    }
+  },
+  "fault_drop_next_commit_ack": false,
+  "fault_log": null,
+  "created_at": "2026-11-23T14:04:25.5175912Z"
+}

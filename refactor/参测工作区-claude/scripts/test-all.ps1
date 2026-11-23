@@ -42,4 +42,10 @@ $e2eExit = $LASTEXITCODE
 if ($e2eExit -ne 0) { Write-Host 'PUBLIC E2E FAILED'; exit 1 }
 
 Write-Host ''
+Write-Host '== Fault scenarios F1-F3 (live processes) =='
+& (Join-Path $PSScriptRoot 'e2e-fault.ps1')
+$faultExit = $LASTEXITCODE
+if ($faultExit -ne 0) { Write-Host 'FAULT E2E FAILED'; exit 1 }
+
+Write-Host ''
 Write-Host 'ALL TEST SUITES PASSED'

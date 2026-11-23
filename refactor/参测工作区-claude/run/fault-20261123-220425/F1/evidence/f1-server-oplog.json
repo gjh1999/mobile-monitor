@@ -1,0 +1,34 @@
+﻿{
+    "count":  3,
+    "entries":  [
+                    {
+                        "op_id":  "A-09619560e20b2435a3da374e83407e77",
+                        "device_id":  "A",
+                        "path":  "data/readings.txt",
+                        "base_version":  0,
+                        "version":  1,
+                        "result":  "applied",
+                        "at":  "2026-11-23T14:04:27.464902Z"
+                    },
+                    {
+                        "op_id":  "A-c0c25c171c1b93c4b3138fa31d3133ca",
+                        "device_id":  "A",
+                        "path":  "data/readings.txt",
+                        "base_version":  1,
+                        "version":  3,
+                        "result":  "applied",
+                        "at":  "2026-11-23T14:04:28.1138561Z"
+                    },
+                    {
+                        "op_id":  "B-1dfb29270b2a0914e597cc29cd955a48",
+                        "device_id":  "B",
+                        "path":  "data/readings.txt",
+                        "base_version":  1,
+                        "version":  3,
+                        "result":  "conflict",
+                        "at":  "2026-11-23T14:04:28.2354937Z",
+                        "note":  "base_version does not match current server version"
+                    }
+                ],
+    "ok":  true
+}

@@ -1,0 +1,90 @@
+{
+  "device_id": "B",
+  "base": {},
+  "last_seen_version": 0,
+  "paused": false,
+  "inflight": null,
+  "awaiting": null,
+  "receipt_log": [],
+  "conflicts": [],
+  "imports": [],
+  "pending_imports": [],
+  "event_cache": {
+    "thread-f2": [
+      {
+        "event_id": "f2-1",
+        "item_id": "u1",
+        "seq": 1,
+        "text": "Run the check.",
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "user.message"
+      },
+      {
+        "arguments": {
+          "line": "dispatch",
+          "path": "evidence/replayed.txt"
+        },
+        "call_id": "call-f2",
+        "event_id": "f2-2",
+        "item_id": "c1",
+        "name": "fixture.append_marker",
+        "seq": 2,
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "tool.call"
+      },
+      {
+        "call_id": "call-f2",
+        "event_id": "f2-3",
+        "item_id": "r1",
+        "result": {
+          "accepted": true
+        },
+        "seq": 3,
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "tool.result"
+      },
+      {
+        "event_id": "f2-4",
+        "item_id": "a1",
+        "seq": 4,
+        "text": "哈",
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "f2-5",
+        "item_id": "a1",
+        "seq": 5,
+        "text": "哈",
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "f2-6",
+        "item_id": "a1",
+        "seq": 6,
+        "text": "，记录已保存。",
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "f2-7",
+        "item_id": "a1",
+        "seq": 7,
+        "thread_id": "thread-f2",
+        "turn_id": "turn-01",
+        "type": "assistant.done"
+      }
+    ]
+  },
+  "tool_dispatch_attempts": 0,
+  "created_at": "1795442672326",
+  "last_sync_at": null,
+  "sync_errors": []
+}
