@@ -37,7 +37,7 @@
     {
         "case":  "C5-segment-replay",
         "result":  "PASS",
-        "seconds":  1.1
+        "seconds":  1
     },
     {
         "case":  "C6-pause",
