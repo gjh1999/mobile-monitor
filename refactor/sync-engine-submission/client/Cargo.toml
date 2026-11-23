@@ -1,0 +1,13 @@
+[package]
+name = "syncclient"
+version = "0.1.0"
+edition = "2021"
+
+# 仅使用本机 cargo 缓存中已有的 crate，离线可构建。
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
+
+[profile.release]
+opt-level = 1
