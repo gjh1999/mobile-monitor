@@ -285,6 +285,7 @@ figcaption { color: var(--ink); font-weight: 650; margin-bottom: 15px; }
     <div class="content">
 
 <section id="current">
+  <p id="sync-engine-benchmark"><strong>文件与 Codex 消息同步引擎模型评测。</strong> v1.0 已提供公开题目、合成事件、独立验收手册和两轮评分表，参测模型成绩待实测。<a href="../refactor/模型评测/README.md">评测包与发题步骤</a></p>
   <p id="workspace-refactor"><strong>实时工作区重构已确认，待开发。</strong> R51 是当前已发布基线。重构沿用本仓库，全部新代码放在 <code>refactor/</code> 并通过独立开发分支集成。先用一个测试项目、两个隔离客户端和一个协调服务验证文件同步与回滚，再验收会话、审批和原线程交接。<a href="../refactor/docs/澜汐开发架构文档.md">重构设计与分阶段验收</a> · <a href="../refactor/docs/澜汐开发架构文档.md#重构团队的模型与思考强度">各工程师的模型与思考强度</a></p>
   <p><strong>独立 Codex 会话的可操作审批弹窗，R51 已发布。</strong> 本机 Hook 展示操作详情，用户可接受一次、拒绝或回到 Codex 审批。升级后在托盘更新 Hook 并在 Codex 中信任。<a href="DELIVERY_STATUS.md#hook-approval-decisions">验收工单</a></p>
   <p><strong>审批弹窗与跨机提醒，R50 已发布。</strong> 从托盘「VS Code 审批提醒」启用或更新本机配置。跨机队列重连时，已经显示过的待审批项可手动查看。其他电脑的完成提醒默认关闭，可在托盘单独启用。<a href="DELIVERY_STATUS.md#approval-reminders">验收工单</a></p>

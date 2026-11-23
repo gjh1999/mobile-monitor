@@ -1,0 +1,35 @@
+{
+  "thread_id": "thread-ledger",
+  "turn_id": "turn-07",
+  "items": [
+    {
+      "item_id": "u7",
+      "type": "user.message",
+      "text": "记录检查结果。"
+    },
+    {
+      "item_id": "c7",
+      "type": "tool.call",
+      "call_id": "mark-7",
+      "name": "fixture.append_marker",
+      "arguments": {
+        "path": "evidence/replayed.txt",
+        "line": "dispatch"
+      }
+    },
+    {
+      "item_id": "r7",
+      "type": "tool.result",
+      "call_id": "mark-7",
+      "result": {
+        "accepted": true
+      }
+    },
+    {
+      "item_id": "a7",
+      "type": "assistant",
+      "text": "哈哈，记录已保存。",
+      "status": "completed"
+    }
+  ]
+}
