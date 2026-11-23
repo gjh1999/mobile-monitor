@@ -2,7 +2,7 @@
   "client_id": "A",
   "server_url": "http://127.0.0.1:8730",
   "project_dir": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run\\test-C4-kill\\project-a",
-  "version": 1,
+  "version": 2,
   "applied_seq": 0,
   "applied_event_seq": 0,
   "event_push_cursor": 0,
@@ -17,20 +17,6 @@
       "size": 7
     }
   },
-  "pending_batches": {
-    "batch-1795457617339-1d16086d": {
-      "changes": [
-        {
-          "base_hash": "",
-          "hash": "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac",
-          "op": "upsert",
-          "path": "after-server-death.txt",
-          "size": 2
-        }
-      ],
-      "status": "unsent",
-      "created_at": "2026-11-23T18:13:37Z"
-    }
-  },
+  "pending_batches": {},
   "conflicts": []
 }
