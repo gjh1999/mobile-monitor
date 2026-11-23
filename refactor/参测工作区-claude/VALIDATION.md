@@ -29,13 +29,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-all.ps1
 
 ## 3. 公开验收 U1–U3
 
-用例根目录：`run/e2e-20261123-221300`
+用例根目录：`run/e2e-20261123-221507`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 ```
 
-结果：**27/27 断言通过**（`run/e2e-20261123-221300/e2e-result.json`）。
+结果：**27/27 断言通过**（`run/e2e-20261123-221507/e2e-result.json`）。
 
 覆盖内容：
 
@@ -49,7 +49,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
   - 首次导入 6 条事件（accepted=6）；
   - B 的 `thread-weather/turn-01` 恰好 4 条逻辑条目，字段与顺序符合预期；
   - 再次导入 accepted=0、duplicates=6，历史逐字段不变；
-  - `/replay` 报告 `tool_dispatch_attempts=0`，无工具副作用文件；
+  - `/replay` 报告 `tool_dispatch_attempts=0`，回放前后项目目录无变化；
   - 强制/优雅重启 B 后历史不变。
 
 证据文件：
@@ -64,13 +64,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 
 ## 4. 故障场景 F1–F3（提交自带）
 
-用例根目录：`run/fault-20261123-221310`
+用例根目录：`run/fault-20261123-221420`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1
 ```
 
-结果：**31/31 断言通过**（`run/fault-20261123-221310/e2e-fault-result.json`）。
+结果：**31/31 断言通过**（`run/fault-20261123-221420/e2e-fault-result.json`）。
 
 | 场景 | 验证点 | 结果 |
 |---|---|---|

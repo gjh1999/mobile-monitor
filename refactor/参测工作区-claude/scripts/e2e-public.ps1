@@ -91,6 +91,18 @@ function Get-ClientStatus {
     return Invoke-JsonApi -Uri ("http://127.0.0.1:" + $ControlPort + "/status") -TimeoutSec 5
 }
 
+function Get-ProjectSnapshot {
+    $files = @()
+    foreach ($dir in @($projectA, $projectB)) {
+        if (Test-Path -LiteralPath $dir) {
+            foreach ($f in (Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue | Sort-Object FullName)) {
+                $files += ($f.FullName + '|' + (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash)
+            }
+        }
+    }
+    return ($files -join "`n")
+}
+
 function Get-History {
     param([int]$ControlPort, [string]$ThreadId, [string]$TurnId)
     $url = "http://127.0.0.1:$ControlPort/history?thread_id=" + [Uri]::EscapeDataString($ThreadId)
@@ -276,10 +288,11 @@ try {
     Assert-True 'U3 replay keeps item count, order, association and text' $same
     Save-Evidence 'u3-history-after-replay.json' $history2
 
+    $projectSnapshotBefore = Get-ProjectSnapshot
     $replay = Invoke-JsonApi -Uri ("$bUrl/replay?thread_id=thread-weather&turn_id=turn-01")
+    $projectSnapshotAfter = Get-ProjectSnapshot
     Assert-True 'U3 read-only replay reports zero tool dispatch' (($replay.tool_dispatch_attempts -eq 0) -and ($replay.tool_call_items_observed -eq 1)) ($replay | ConvertTo-Json -Depth 10 -Compress)
-    $marker = Get-ChildItem -LiteralPath $runPath -Recurse -File -Filter 'replayed.txt' -ErrorAction SilentlyContinue
-    Assert-True 'U3 no tool side-effect file exists' ($null -eq $marker)
+    Assert-True 'U3 read-only replay leaves project files unchanged' ($projectSnapshotBefore -eq $projectSnapshotAfter)
     Save-Evidence 'u3-replay.json' $replay
 
     Restart-ClientB

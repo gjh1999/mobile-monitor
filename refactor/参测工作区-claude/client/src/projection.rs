@@ -236,11 +236,11 @@ mod tests {
     #[test]
     fn replay_dedupes_event_id_but_keeps_equal_text_events() {
         let e1 = r#"{"event_id":"l1","thread_id":"t","turn_id":"u","seq":1,"type":"user.message","item_id":"u1","text":"hi"}"#;
-        let e2 = r#"{"event_id":"l2","thread_id":"t","turn_id":"u","seq":2,"type":"tool.call","item_id":"c1","call_id":"mark","name":"fixture.append_marker","arguments":{}}"#;
-        let e3 = r#"{"event_id":"l3","thread_id":"t","turn_id":"u","seq":3,"type":"tool.result","item_id":"r1","call_id":"mark","result":{"accepted":true}}"#;
-        let e4 = r#"{"event_id":"l4","thread_id":"t","turn_id":"u","seq":4,"type":"assistant.delta","item_id":"a1","text":"哈"}"#;
-        let e5 = r#"{"event_id":"l5","thread_id":"t","turn_id":"u","seq":5,"type":"assistant.delta","item_id":"a1","text":"哈"}"#;
-        let e6 = r#"{"event_id":"l6","thread_id":"t","turn_id":"u","seq":6,"type":"assistant.delta","item_id":"a1","text":"，好"}"#;
+        let e2 = r#"{"event_id":"l2","thread_id":"t","turn_id":"u","seq":2,"type":"tool.call","item_id":"c1","call_id":"call-x","name":"sample.marker","arguments":{}}"#;
+        let e3 = r#"{"event_id":"l3","thread_id":"t","turn_id":"u","seq":3,"type":"tool.result","item_id":"r1","call_id":"call-x","result":{"accepted":true}}"#;
+        let e4 = r#"{"event_id":"l4","thread_id":"t","turn_id":"u","seq":4,"type":"assistant.delta","item_id":"a1","text":"好"}"#;
+        let e5 = r#"{"event_id":"l5","thread_id":"t","turn_id":"u","seq":5,"type":"assistant.delta","item_id":"a1","text":"好"}"#;
+        let e6 = r#"{"event_id":"l6","thread_id":"t","turn_id":"u","seq":6,"type":"assistant.delta","item_id":"a1","text":"，完成"}"#;
         let e7 = r#"{"event_id":"l7","thread_id":"t","turn_id":"u","seq":7,"type":"assistant.done","item_id":"a1"}"#;
         // part1 = 1..4, part2 = 3..7, then full replay = 1..7
         let mut all = Vec::new();
@@ -250,9 +250,9 @@ mod tests {
         let h = project(&all, "t", Some("u"));
         let items = h["items"].as_array().unwrap();
         assert_eq!(items.len(), 4, "{}", h);
-        assert_eq!(items[3]["text"], "哈哈，好");
+        assert_eq!(items[3]["text"], "好好，完成");
         assert_eq!(items[3]["status"], "completed");
-        assert_eq!(items[2]["call_id"], "mark");
+        assert_eq!(items[2]["call_id"], "call-x");
         assert_eq!(count_tool_calls(&h), 1);
     }
 
