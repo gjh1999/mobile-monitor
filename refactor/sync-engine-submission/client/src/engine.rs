@@ -15,7 +15,7 @@
 //   record is written; otherwise the change applies directly.
 use crate::httpc::{self, HttpError};
 use crate::store::{self, FileEntry, PendingBatch, Snapshot, StateStore};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,14 +54,8 @@ impl SyncReport {
             "events_pulled": self.events_pulled,
             "receipt_lost": self.receipt_lost,
             "offline": self.offline,
-            "version": self_version(&self),
         })
     }
-}
-
-fn self_version(r: &SyncReport) -> i64 {
-    // placeholder overwritten by caller via engine.snap.version
-    0
 }
 
 impl Engine {
@@ -97,7 +91,7 @@ impl Engine {
     /// tombstone JSON files are ordinary files and propagate like any other.
     fn scan_disk(&self) -> std::io::Result<BTreeMap<String, Vec<u8>>> {
         let mut out = BTreeMap::new();
-        walk(&self.project, &self.project, &mut out)?;
+        walk_files(&self.project, &self.project, &mut out)?;
         Ok(out)
     }
 
@@ -192,7 +186,7 @@ impl Engine {
             if rel.as_os_str().is_empty() {
                 break;
             }
-            let abs = self.project.join(rel);
+            let abs = self.project.join(&rel);
             if fs::remove_dir(&abs).is_err() {
                 break;
             }
@@ -564,7 +558,7 @@ impl Engine {
         let marker = if saved_as.ends_with(".json") {
             saved_as.to_string()
         } else {
-            ""
+            String::new()
         };
         self.snap.conflicts.push(crate::store::ConflictRecord {
             path: path.to_string(),
@@ -792,6 +786,23 @@ impl Engine {
         self.snap.offline = offline;
         self.save();
     }
+}
+
+fn walk_files(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<u8>>) -> std::io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let p = entry.path();
+        if p.is_dir() {
+            walk_files(root, &p, out)?;
+        } else if p.is_file() {
+            let rel = p.strip_prefix(root).unwrap_or(&p).to_path_buf();
+            let key = rel.to_string_lossy().replace('\\', "/");
+            if let Ok(data) = fs::read(&p) {
+                out.insert(key, data);
+            }
+        }
+    }
+    Ok(())
 }
 
 enum PushError {

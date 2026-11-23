@@ -44,36 +44,27 @@ impl Response {
 }
 
 fn parse_url(url: &str) -> Result<(String, u16, String, bool), HttpError> {
-    let (host, port, path, tls);
-    let rest = url
-        .strip_prefix("https://")
-        .map(|r| {
-            tls = true;
-            r
-        })
-        .or_else(|| url.strip_prefix("http://").map(|r| {
-            tls = false;
-            r
-        }));
-    let rest = match rest {
-        Some(r) => r,
-        None => return Err(HttpError::Protocol(format!("unsupported url {}", url))),
+    let tls = url.starts_with("https://");
+    let rest = if tls {
+        &url["https://".len()..]
+    } else if let Some(r) = url.strip_prefix("http://") {
+        r
+    } else {
+        return Err(HttpError::Protocol(format!("unsupported url {}", url)));
     };
-    let (hp, p) = match rest.find('/') {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, "/"),
+    let (hp, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], rest[i..].to_string()),
+        None => (rest, "/".to_string()),
     };
-    match hp.rsplit_once(':') {
-        Some((h, pt)) => {
-            host = h.to_string();
-            port = pt.parse().map_err(|_| HttpError::Protocol("bad port".into()))?;
-        }
-        None => {
-            host = hp.to_string();
-            port = if tls { 443 } else { 80 };
-        }
-    }
-    Ok((host, port, p.to_string(), tls))
+    let (host, port) = match hp.rsplit_once(':') {
+        Some((h, pt)) => (
+            h.to_string(),
+            pt.parse::<u16>()
+                .map_err(|_| HttpError::Protocol("bad port".into()))?,
+        ),
+        None => (hp.to_string(), if tls { 443 } else { 80 }),
+    };
+    Ok((host, port, path, tls))
 }
 
 /// Perform one request. Every request uses a fresh connection with
