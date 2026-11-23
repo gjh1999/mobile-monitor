@@ -1,0 +1,8 @@
+﻿{
+    "items":  4,
+    "mode":  "read-only",
+    "replay_log":  "state/events/replay.log",
+    "tool_calls_seen":  1,
+    "tools_dispatched":  0,
+    "transcript":  "REPLAY thread=thread-weather turn=turn-01  (read-only: no tools are dispatched)\n  USER  \u003e 计算读数的平均值。\n  TOOL  \u003e sample.mean call_id=call-1 args={\"values\":[18,22]} [historical record, NOT dispatched]\n  RESULT\u003e (call_id call-1) {\"mean\":20}\n  BOT   \u003e 平均值是 20。\n"
+}

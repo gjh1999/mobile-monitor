@@ -5,7 +5,7 @@
   "version": 0,
   "applied_seq": 0,
   "applied_event_seq": 6,
-  "event_push_cursor": 3,
+  "event_push_cursor": 6,
   "offline": false,
   "files": {},
   "pending_batches": {},

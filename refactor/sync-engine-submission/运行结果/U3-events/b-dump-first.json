@@ -10,7 +10,7 @@
                                                             "first_seq":  1,
                                                             "item_id":  "u1",
                                                             "kind":  "user",
-                                                            "text":  "è®¡ç®è¯»æ°çå¹³åå¼ã"
+                                                            "text":  "计算读数的平均值。"
                                                         },
                                                         {
                                                             "arguments":  "@{values=System.Object[]}",
@@ -32,7 +32,7 @@
                                                             "first_seq":  4,
                                                             "item_id":  "a1",
                                                             "kind":  "assistant",
-                                                            "text":  "å¹³åå¼æ¯ 20ã"
+                                                            "text":  "平均值是 20。"
                                                         }
                                                     ],
                                           "turn_id":  "turn-01"

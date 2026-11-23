@@ -1,6 +1,6 @@
 ﻿{
     "conflicts":  0,
-    "error":  "blob upload: 127.0.0.1:8730 (ç±äºç®æ è®¡ç®æºç§¯ææç»ï¼æ æ³è¿æ¥ã (os error 10061))",
+    "error":  "blob upload: 127.0.0.1:8730 (由于目标计算机积极拒绝，无法连接。 (os error 10061))",
     "events_pulled":  0,
     "events_pushed":  0,
     "offline":  false,

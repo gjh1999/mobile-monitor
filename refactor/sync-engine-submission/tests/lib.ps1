@@ -21,7 +21,9 @@ function Invoke-Step {
     param([string]$Title, [scriptblock]$Action)
     Write-Host ""
     Write-Host ("== " + $Title)
-    & $Action
+    # Dot-source so variable assignments inside the step stay visible to
+    # later steps in the same case (PS scriptblock & creates a child scope).
+    . $Action
 }
 
 function Assert-True {

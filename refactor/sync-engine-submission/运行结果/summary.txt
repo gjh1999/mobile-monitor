@@ -2,18 +2,18 @@
     {
         "case":  "U1-boot",
         "result":  "PASS",
-        "seconds":  2.4
+        "seconds":  2.6
     },
     {
         "case":  "U2-files",
         "result":  "PASS",
-        "seconds":  2.2
+        "seconds":  2.1
     },
     {
         "case":  "U3-events",
         "result":  "FAIL",
-        "error":  "assertion failed: u1 text preserved verbatim",
-        "seconds":  0.9
+        "error":  "assertion failed: order and set of items identical after replay",
+        "seconds":  1
     },
     {
         "case":  "C1-conflict",
@@ -37,9 +37,8 @@
     },
     {
         "case":  "C5-segment-replay",
-        "result":  "FAIL",
-        "error":  "assertion failed: assistant text intact after segmented import",
-        "seconds":  1
+        "result":  "PASS",
+        "seconds":  1.1
     },
     {
         "case":  "C6-pause",
