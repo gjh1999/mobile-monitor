@@ -1,16 +1,16 @@
 ﻿{
     "applied_ops":  3,
     "conflicts":  null,
-    "created_at":  "2026-11-23T14:05:44.1630206Z",
+    "created_at":  "2026-11-23T14:06:48.3686403Z",
     "devices":  {
                     "A":  {
                               "last_pull_since":  2,
-                              "last_seen_at":  "2026-11-23T14:05:46.6563067Z",
+                              "last_seen_at":  "2026-11-23T14:06:50.8332094Z",
                               "event_batches":  0
                           },
                     "B":  {
                               "last_pull_since":  0,
-                              "last_seen_at":  "2026-11-23T14:05:46.1900911Z",
+                              "last_seen_at":  "2026-11-23T14:06:50.3828902Z",
                               "event_batches":  0
                           }
                 },
@@ -25,7 +25,7 @@
                                             "device_id":  "A",
                                             "op_id":  "A-c0c25c171c1b93c4b3138fa31d3133ca",
                                             "prior_hash":  "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
-                                            "updated_at":  "2026-11-23T14:05:46.648172Z",
+                                            "updated_at":  "2026-11-23T14:06:50.8269833Z",
                                             "version":  3
                                         },
                   "summary.py":  {
@@ -33,7 +33,7 @@
                                      "device_id":  "A",
                                      "hash":  "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
                                      "op_id":  "A-8f8bc5c312f60b6b498bab7a6a1c3556",
-                                     "updated_at":  "2026-11-23T14:05:46.0136569Z",
+                                     "updated_at":  "2026-11-23T14:06:50.1928268Z",
                                      "version":  2
                                  }
               },

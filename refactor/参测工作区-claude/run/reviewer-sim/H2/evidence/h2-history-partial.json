@@ -1,0 +1,36 @@
+﻿{
+    "items":  [
+                  {
+                      "item_id":  "u7",
+                      "text":  "记录检查结果。",
+                      "type":  "user.message"
+                  },
+                  {
+                      "arguments":  {
+                                        "line":  "dispatch",
+                                        "path":  "evidence/replayed.txt"
+                                    },
+                      "call_id":  "mark-7",
+                      "item_id":  "c7",
+                      "name":  "fixture.append_marker",
+                      "type":  "tool.call"
+                  },
+                  {
+                      "call_id":  "mark-7",
+                      "item_id":  "r7",
+                      "result":  {
+                                     "accepted":  true
+                                 },
+                      "type":  "tool.result"
+                  },
+                  {
+                      "item_id":  "a7",
+                      "status":  "streaming",
+                      "text":  "哈",
+                      "type":  "assistant"
+                  }
+              ],
+    "source":  "server",
+    "thread_id":  "thread-ledger",
+    "turn_id":  "turn-07"
+}

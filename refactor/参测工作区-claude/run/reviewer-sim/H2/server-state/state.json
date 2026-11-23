@@ -1,0 +1,95 @@
+{
+  "next_version": 1,
+  "files": {},
+  "applied_ops": {},
+  "op_log": null,
+  "conflicts": null,
+  "events": {
+    "ledger-1": {
+      "event_id": "ledger-1",
+      "item_id": "u7",
+      "seq": 1,
+      "text": "记录检查结果。",
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "user.message"
+    },
+    "ledger-2": {
+      "arguments": {
+        "line": "dispatch",
+        "path": "evidence/replayed.txt"
+      },
+      "call_id": "mark-7",
+      "event_id": "ledger-2",
+      "item_id": "c7",
+      "name": "fixture.append_marker",
+      "seq": 2,
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "tool.call"
+    },
+    "ledger-3": {
+      "call_id": "mark-7",
+      "event_id": "ledger-3",
+      "item_id": "r7",
+      "result": {
+        "accepted": true
+      },
+      "seq": 3,
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "tool.result"
+    },
+    "ledger-4": {
+      "event_id": "ledger-4",
+      "item_id": "a7",
+      "seq": 4,
+      "text": "哈",
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "assistant.delta"
+    },
+    "ledger-5": {
+      "event_id": "ledger-5",
+      "item_id": "a7",
+      "seq": 5,
+      "text": "哈",
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "assistant.delta"
+    },
+    "ledger-6": {
+      "event_id": "ledger-6",
+      "item_id": "a7",
+      "seq": 6,
+      "text": "，记录已保存。",
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "assistant.delta"
+    },
+    "ledger-7": {
+      "event_id": "ledger-7",
+      "item_id": "a7",
+      "seq": 7,
+      "thread_id": "thread-ledger",
+      "turn_id": "turn-07",
+      "type": "assistant.done"
+    }
+  },
+  "devices": {
+    "A": {
+      "last_pull_since": 0,
+      "last_seen_at": "2026-11-23T14:06:56.4869216Z",
+      "last_event_at": "2026-11-23T14:06:55.1761831Z",
+      "event_batches": 3
+    },
+    "B": {
+      "last_pull_since": 0,
+      "last_seen_at": "2026-11-23T14:06:56.1254769Z",
+      "event_batches": 0
+    }
+  },
+  "fault_drop_next_commit_ack": false,
+  "fault_log": null,
+  "created_at": "2026-11-23T14:06:53.5036914Z"
+}

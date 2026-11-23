@@ -1,0 +1,23 @@
+{
+  "device_id": "B",
+  "base": {
+    "notes/receipt.txt": {
+      "version": 1,
+      "deleted": false,
+      "hash": "1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2"
+    }
+  },
+  "last_seen_version": 1,
+  "paused": false,
+  "inflight": null,
+  "awaiting": null,
+  "receipt_log": [],
+  "conflicts": [],
+  "imports": [],
+  "pending_imports": [],
+  "event_cache": {},
+  "tool_dispatch_attempts": 0,
+  "created_at": "1795442818545",
+  "last_sync_at": "1795442819486",
+  "sync_errors": []
+}

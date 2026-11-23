@@ -1,0 +1,133 @@
+{
+  "device_id": "A",
+  "base": {},
+  "last_seen_version": 0,
+  "paused": false,
+  "inflight": null,
+  "awaiting": null,
+  "receipt_log": [],
+  "conflicts": [],
+  "imports": [
+    {
+      "accepted": 4,
+      "at": "1795442815060",
+      "duplicates": 0,
+      "end_line": 4,
+      "event_lines": 4,
+      "file": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H2\\part1.jsonl",
+      "server_total": 4,
+      "start_line": 1,
+      "status": "ok",
+      "threads": [
+        "thread-ledger"
+      ]
+    },
+    {
+      "accepted": 3,
+      "at": "1795442815122",
+      "duplicates": 2,
+      "end_line": 5,
+      "event_lines": 5,
+      "file": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H2\\part2.jsonl",
+      "server_total": 7,
+      "start_line": 1,
+      "status": "ok",
+      "threads": [
+        "thread-ledger"
+      ]
+    },
+    {
+      "accepted": 0,
+      "at": "1795442815180",
+      "duplicates": 7,
+      "end_line": 7,
+      "event_lines": 7,
+      "file": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\模型评测\\评审专用\\隐藏事件.jsonl",
+      "server_total": 7,
+      "start_line": 1,
+      "status": "ok",
+      "threads": [
+        "thread-ledger"
+      ]
+    }
+  ],
+  "pending_imports": [],
+  "event_cache": {
+    "thread-ledger": [
+      {
+        "event_id": "ledger-1",
+        "item_id": "u7",
+        "seq": 1,
+        "text": "记录检查结果。",
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "user.message"
+      },
+      {
+        "arguments": {
+          "line": "dispatch",
+          "path": "evidence/replayed.txt"
+        },
+        "call_id": "mark-7",
+        "event_id": "ledger-2",
+        "item_id": "c7",
+        "name": "fixture.append_marker",
+        "seq": 2,
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "tool.call"
+      },
+      {
+        "call_id": "mark-7",
+        "event_id": "ledger-3",
+        "item_id": "r7",
+        "result": {
+          "accepted": true
+        },
+        "seq": 3,
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "tool.result"
+      },
+      {
+        "event_id": "ledger-4",
+        "item_id": "a7",
+        "seq": 4,
+        "text": "哈",
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "ledger-5",
+        "item_id": "a7",
+        "seq": 5,
+        "text": "哈",
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "ledger-6",
+        "item_id": "a7",
+        "seq": 6,
+        "text": "，记录已保存。",
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "assistant.delta"
+      },
+      {
+        "event_id": "ledger-7",
+        "item_id": "a7",
+        "seq": 7,
+        "thread_id": "thread-ledger",
+        "turn_id": "turn-07",
+        "type": "assistant.done"
+      }
+    ]
+  },
+  "tool_dispatch_attempts": 0,
+  "created_at": "1795442814020",
+  "last_sync_at": "1795442815180",
+  "sync_errors": []
+}

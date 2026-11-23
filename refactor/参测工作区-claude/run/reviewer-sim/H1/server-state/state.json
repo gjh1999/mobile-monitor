@@ -7,7 +7,7 @@
       "prior_hash": "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
       "op_id": "A-c0c25c171c1b93c4b3138fa31d3133ca",
       "device_id": "A",
-      "updated_at": "2026-11-23T14:05:46.648172Z"
+      "updated_at": "2026-11-23T14:06:50.8269833Z"
     },
     "data/readings.txt.conflict-B-v3": {
       "version": 4,
@@ -15,7 +15,7 @@
       "hash": "5e0bcdd059a560fb5cee284124be5d22891e6e184c3b4e0b37c9c7ca869983ed",
       "op_id": "B-af84c9a96b5043ba038cae77d4f0688b",
       "device_id": "B",
-      "updated_at": "2026-11-23T14:05:47.4612581Z"
+      "updated_at": "2026-11-23T14:06:51.8018404Z"
     },
     "summary.py": {
       "version": 2,
@@ -23,7 +23,7 @@
       "hash": "bbbee09379e304b171af9f593de4ee174736071745a8b62fdcabd4c23b595169",
       "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
       "device_id": "A",
-      "updated_at": "2026-11-23T14:05:46.0136569Z"
+      "updated_at": "2026-11-23T14:06:50.1928268Z"
     }
   },
   "applied_ops": {
@@ -33,7 +33,7 @@
       "path": "data/readings.txt",
       "device_id": "A",
       "base_version": 0,
-      "at": "2026-11-23T14:05:45.9925629Z"
+      "at": "2026-11-23T14:06:50.1755532Z"
     },
     "A-8f8bc5c312f60b6b498bab7a6a1c3556": {
       "version": 2,
@@ -41,7 +41,7 @@
       "path": "summary.py",
       "device_id": "A",
       "base_version": 0,
-      "at": "2026-11-23T14:05:46.0136569Z"
+      "at": "2026-11-23T14:06:50.1928268Z"
     },
     "A-c0c25c171c1b93c4b3138fa31d3133ca": {
       "version": 3,
@@ -49,7 +49,7 @@
       "path": "data/readings.txt",
       "device_id": "A",
       "base_version": 1,
-      "at": "2026-11-23T14:05:46.648172Z"
+      "at": "2026-11-23T14:06:50.8269833Z"
     },
     "B-af84c9a96b5043ba038cae77d4f0688b": {
       "version": 4,
@@ -57,7 +57,7 @@
       "path": "data/readings.txt.conflict-B-v3",
       "device_id": "B",
       "base_version": 0,
-      "at": "2026-11-23T14:05:47.4612581Z"
+      "at": "2026-11-23T14:06:51.8018404Z"
     }
   },
   "op_log": [
@@ -68,7 +68,7 @@
       "base_version": 0,
       "version": 1,
       "result": "applied",
-      "at": "2026-11-23T14:05:45.9925629Z"
+      "at": "2026-11-23T14:06:50.1755532Z"
     },
     {
       "op_id": "A-8f8bc5c312f60b6b498bab7a6a1c3556",
@@ -77,7 +77,7 @@
       "base_version": 0,
       "version": 2,
       "result": "applied",
-      "at": "2026-11-23T14:05:46.0136569Z"
+      "at": "2026-11-23T14:06:50.1928268Z"
     },
     {
       "op_id": "A-c0c25c171c1b93c4b3138fa31d3133ca",
@@ -86,7 +86,7 @@
       "base_version": 1,
       "version": 3,
       "result": "applied",
-      "at": "2026-11-23T14:05:46.648172Z"
+      "at": "2026-11-23T14:06:50.8269833Z"
     },
     {
       "op_id": "B-1dfb29270b2a0914e597cc29cd955a48",
@@ -95,7 +95,7 @@
       "base_version": 1,
       "version": 3,
       "result": "conflict",
-      "at": "2026-11-23T14:05:46.7142531Z",
+      "at": "2026-11-23T14:06:50.9070999Z",
       "note": "base_version does not match current server version"
     },
     {
@@ -105,7 +105,7 @@
       "base_version": 0,
       "version": 4,
       "result": "applied",
-      "at": "2026-11-23T14:05:47.4612581Z"
+      "at": "2026-11-23T14:06:51.8018404Z"
     }
   ],
   "conflicts": [
@@ -117,23 +117,23 @@
       "server_version": 3,
       "server_deleted": true,
       "server_hash": "748a88ea78f384b2d39609fcc0c327f871e52a203b4b93066595aaf158a6ada3",
-      "at": "2026-11-23T14:05:46.7142531Z"
+      "at": "2026-11-23T14:06:50.9070999Z"
     }
   ],
   "events": {},
   "devices": {
     "A": {
       "last_pull_since": 4,
-      "last_seen_at": "2026-11-23T14:05:48.1960002Z",
+      "last_seen_at": "2026-11-23T14:06:52.3750703Z",
       "event_batches": 0
     },
     "B": {
       "last_pull_since": 4,
-      "last_seen_at": "2026-11-23T14:05:47.7819906Z",
+      "last_seen_at": "2026-11-23T14:06:52.1273379Z",
       "event_batches": 0
     }
   },
   "fault_drop_next_commit_ack": false,
   "fault_log": null,
-  "created_at": "2026-11-23T14:05:44.1630206Z"
+  "created_at": "2026-11-23T14:06:48.3686403Z"
 }

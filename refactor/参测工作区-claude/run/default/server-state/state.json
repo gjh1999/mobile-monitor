@@ -1,0 +1,23 @@
+{
+  "next_version": 1,
+  "files": {},
+  "applied_ops": {},
+  "op_log": null,
+  "conflicts": null,
+  "events": {},
+  "devices": {
+    "A": {
+      "last_pull_since": 0,
+      "last_seen_at": "2026-11-23T14:07:17.0337486Z",
+      "event_batches": 0
+    },
+    "B": {
+      "last_pull_since": 0,
+      "last_seen_at": "2026-11-23T14:07:17.2456752Z",
+      "event_batches": 0
+    }
+  },
+  "fault_drop_next_commit_ack": false,
+  "fault_log": null,
+  "created_at": "2026-11-23T14:07:11.7142376Z"
+}

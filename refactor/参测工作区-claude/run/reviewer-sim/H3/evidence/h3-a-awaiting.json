@@ -1,0 +1,49 @@
+﻿{
+    "awaiting_confirmation":  {
+                                  "base_version":  0,
+                                  "deleted":  false,
+                                  "hash":  "1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2",
+                                  "op_id":  "A-7788d032802f058947f33d742b5ea0db",
+                                  "path":  "notes/receipt.txt",
+                                  "started_at":  "1795442819263"
+                              },
+    "conflict_count":  0,
+    "conflicts":  [
+
+                  ],
+    "created_at":  "1795442818016",
+    "device_id":  "A",
+    "imports":  [
+
+                ],
+    "inflight":  null,
+    "last_error":  "success receipt lost after server commit; retry blocked: empty response (success receipt dropped?)",
+    "last_seen_version":  0,
+    "last_sync_at":  null,
+    "ok":  true,
+    "online":  true,
+    "paused":  false,
+    "pending":  [
+                    {
+                        "base_version":  0,
+                        "hash":  "1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2",
+                        "kind":  "put",
+                        "op_id":  "A-7788d032802f058947f33d742b5ea0db",
+                        "path":  "notes/receipt.txt"
+                    }
+                ],
+    "pending_count":  1,
+    "pending_imports":  [
+
+                        ],
+    "project_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H3\\project-a",
+    "queue_empty":  false,
+    "receipt_log":  [
+
+                    ],
+    "retry_blocked":  true,
+    "server":  "http://127.0.0.1:53776",
+    "server_seq":  0,
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H3\\state-a",
+    "tool_dispatch_attempts":  0
+}

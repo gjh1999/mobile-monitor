@@ -1,0 +1,144 @@
+﻿{
+    "sim_root":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim",
+    "finished_at":  "2026-11-23T22:07:06.6611606+08:00",
+    "fatal":  null,
+    "passed":  27,
+    "failed":  0,
+    "assertions":  [
+                       {
+                           "name":  "H1 baseline reaches B",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 B offline",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 offline edit on disk",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 server accepted the remote delete",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 conflict appears after B reconnects",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 modified version readable with exact SHA-256",
+                           "pass":  true,
+                           "detail":  "copy=data/readings.txt.conflict-B-v3"
+                       },
+                       {
+                           "name":  "H1 original path not silently restored",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H1 conflict survives B restart",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H2 part1 imported",
+                           "pass":  true,
+                           "detail":  "{\"accepted\":4,\"duplicates\":0,\"end_line\":4,\"event_lines\":4,\"file\":\"D:\\\\VscodeProject\\\\codexDesk\\\\mobile-monitor\\\\refactor\\\\参测工作区-claude\\\\run\\\\reviewer-sim\\\\H2\\\\part1.jsonl\",\"ok\":true,\"server_total\":4,\"start_line\":1,\"threads\":[\"thread-ledger\"]}"
+                       },
+                       {
+                           "name":  "H2 B shows incomplete reply before disconnect",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H2 part2 dedupes replayed lines",
+                           "pass":  true,
+                           "detail":  "{\"accepted\":3,\"duplicates\":2,\"end_line\":5,\"event_lines\":5,\"file\":\"D:\\\\VscodeProject\\\\codexDesk\\\\mobile-monitor\\\\refactor\\\\参测工作区-claude\\\\run\\\\reviewer-sim\\\\H2\\\\part2.jsonl\",\"ok\":true,\"server_total\":7,\"start_line\":1,\"threads\":[\"thread-ledger\"]}"
+                       },
+                       {
+                           "name":  "H2 final history matches expected logic fields",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H2 full file replay deduplicated",
+                           "pass":  true,
+                           "detail":  "{\"accepted\":0,\"duplicates\":7,\"end_line\":7,\"event_lines\":7,\"file\":\"D:\\\\VscodeProject\\\\codexDesk\\\\mobile-monitor\\\\refactor\\\\模型评测\\\\评审专用\\\\隐藏事件.jsonl\",\"ok\":true,\"server_total\":7,\"start_line\":1,\"threads\":[\"thread-ledger\"]}"
+                       },
+                       {
+                           "name":  "H2 history matches expected after B restart",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H2 zero tool dispatch",
+                           "pass":  true,
+                           "detail":  "{\"history\":{\"items\":[{\"item_id\":\"u7\",\"text\":\"记录检查结果。\",\"type\":\"user.message\"},{\"arguments\":{\"line\":\"dispatch\",\"path\":\"evidence/replayed.txt\"},\"call_id\":\"mark-7\",\"item_id\":\"c7\",\"name\":\"fixture.append_marker\",\"type\":\"tool.call\"},{\"call_id\":\"mark-7\",\"item_id\":\"r7\",\"result\":{\"accepted\":true},\"type\":\"tool.result\"},{\"item_id\":\"a7\",\"status\":\"completed\",\"text\":\"哈哈，记录已保存。\",\"type\":\"assistant\"}],\"source\":\"server\",\"thread_id\":\"thread-ledger\",\"turn_id\":\"turn-07\"},\"note\":\"tool.call and tool.result events are rendered as history only; this client has no tool executor\",\"replay_mode\":\"read-only-projection\",\"tool_call_items_observed\":1,\"tool_dispatch_attempts\":0}"
+                       },
+                       {
+                           "name":  "H2 no marker side effect",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 empty queues converged",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 A paused before first retry",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 commit persisted with expected hash",
+                           "pass":  true,
+                           "detail":  "hash=1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2"
+                       },
+                       {
+                           "name":  "H3 server has exactly one applied op",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 no immediate retry while awaiting",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 B receives expected bytes after restart and retry",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 A queue clears",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 exactly one logical commit",
+                           "pass":  true,
+                           "detail":  "applied_ops=1 oplog=1"
+                       },
+                       {
+                           "name":  "H3 receipt resolution recorded",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 second restart keeps file and empty queues",
+                           "pass":  true,
+                           "detail":  ""
+                       },
+                       {
+                           "name":  "H3 still one applied op after second restart",
+                           "pass":  true,
+                           "detail":  ""
+                       }
+                   ]
+}

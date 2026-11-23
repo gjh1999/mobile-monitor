@@ -1,0 +1,17 @@
+{
+  "device_id": "A",
+  "base": {},
+  "last_seen_version": 0,
+  "paused": false,
+  "inflight": null,
+  "awaiting": null,
+  "receipt_log": [],
+  "conflicts": [],
+  "imports": [],
+  "pending_imports": [],
+  "event_cache": {},
+  "tool_dispatch_attempts": 0,
+  "created_at": "1795442832290",
+  "last_sync_at": null,
+  "sync_errors": []
+}

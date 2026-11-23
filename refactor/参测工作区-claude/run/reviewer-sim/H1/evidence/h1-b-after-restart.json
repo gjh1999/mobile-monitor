@@ -3,7 +3,7 @@
     "conflict_count":  1,
     "conflicts":  [
                       {
-                          "detected_at":  "1795442746722",
+                          "detected_at":  "1795442810914",
                           "device":  "B",
                           "kind":  "remote-deleted-vs-local-modified",
                           "local_conflict_path":  "data/readings.txt.conflict-B-v3",
@@ -17,7 +17,7 @@
                           "server_version":  3
                       }
                   ],
-    "created_at":  "1795442745248",
+    "created_at":  "1795442809447",
     "device_id":  "B",
     "imports":  [
 
@@ -25,7 +25,7 @@
     "inflight":  null,
     "last_error":  null,
     "last_seen_version":  4,
-    "last_sync_at":  "1795442747475",
+    "last_sync_at":  "1795442811820",
     "ok":  true,
     "online":  true,
     "paused":  false,
@@ -42,7 +42,7 @@
 
                     ],
     "retry_blocked":  false,
-    "server":  "http://127.0.0.1:52753",
+    "server":  "http://127.0.0.1:53666",
     "server_seq":  4,
     "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H1\\state-b",
     "tool_dispatch_attempts":  0

@@ -1,0 +1,52 @@
+﻿{
+    "applied_ops":  1,
+    "conflicts":  null,
+    "created_at":  "2026-11-23T14:06:57.4943986Z",
+    "devices":  {
+                    "A":  {
+                              "last_pull_since":  0,
+                              "last_seen_at":  "2026-11-23T14:06:58.9558064Z",
+                              "event_batches":  0
+                          },
+                    "B":  {
+                              "last_pull_since":  0,
+                              "last_seen_at":  "2026-11-23T14:06:59.1749022Z",
+                              "event_batches":  0
+                          }
+                },
+    "events_total":  0,
+    "fault":  {
+                  "drop_next_commit_ack":  false
+              },
+    "fault_log":  [
+                      {
+                          "action":  "arm_drop_next_commit_ack",
+                          "at":  "2026-11-23T14:06:59.060457Z",
+                          "note":  "enabled=true"
+                      },
+                      {
+                          "action":  "drop_next_commit_ack",
+                          "at":  "2026-11-23T14:06:59.2750477Z",
+                          "op_id":  "A-7788d032802f058947f33d742b5ea0db",
+                          "path":  "notes/receipt.txt",
+                          "note":  "commit persisted; success response dropped before client read it"
+                      }
+                  ],
+    "files":  {
+                  "notes/receipt.txt":  {
+                                            "deleted":  false,
+                                            "device_id":  "A",
+                                            "hash":  "1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2",
+                                            "op_id":  "A-7788d032802f058947f33d742b5ea0db",
+                                            "updated_at":  "2026-11-23T14:06:59.2724463Z",
+                                            "version":  1
+                                        }
+              },
+    "live_files":  1,
+    "next_version":  2,
+    "ok":  true,
+    "op_log_len":  1,
+    "server_seq":  1,
+    "service":  "coordinator",
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H3\\server-state"
+}

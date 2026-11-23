@@ -1,0 +1,36 @@
+﻿{
+    "awaiting_confirmation":  null,
+    "conflict_count":  0,
+    "conflicts":  [
+
+                  ],
+    "created_at":  "1795442818545",
+    "device_id":  "B",
+    "imports":  [
+
+                ],
+    "inflight":  null,
+    "last_error":  null,
+    "last_seen_version":  1,
+    "last_sync_at":  "1795442819486",
+    "ok":  true,
+    "online":  true,
+    "paused":  false,
+    "pending":  [
+
+                ],
+    "pending_count":  0,
+    "pending_imports":  [
+
+                        ],
+    "project_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H3\\project-b",
+    "queue_empty":  true,
+    "receipt_log":  [
+
+                    ],
+    "retry_blocked":  false,
+    "server":  "http://127.0.0.1:53776",
+    "server_seq":  1,
+    "state_dir":  "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\参测工作区-claude\\run\\reviewer-sim\\H3\\state-b",
+    "tool_dispatch_attempts":  0
+}

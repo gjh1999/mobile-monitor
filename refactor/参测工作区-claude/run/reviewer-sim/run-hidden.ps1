@@ -188,6 +188,28 @@ function Restart-ClientB {
     Start-Sleep -Milliseconds 300
     Start-ClientRole 'b'
 }
+function ConvertTo-Canonical {
+    param($Value)
+    if ($null -eq $Value) { return 'null' }
+    if ($Value -is [string]) { return ($Value | ConvertTo-Json -Compress) }
+    if ($Value -is [bool]) { if ($Value) { return 'true' } else { return 'false' } }
+    if (($Value -is [int]) -or ($Value -is [long]) -or ($Value -is [double]) -or ($Value -is [decimal])) {
+        return [string]$Value
+    }
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $names = @($Value.PSObject.Properties.Name | Sort-Object)
+        $parts = foreach ($n in $names) {
+            (($n | ConvertTo-Json -Compress) + ':' + (ConvertTo-Canonical $Value.$n))
+        }
+        return '{' + ($parts -join ',') + '}'
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $parts = foreach ($item in $Value) { ConvertTo-Canonical $item }
+        return '[' + ($parts -join ',') + ']'
+    }
+    return [string]$Value
+}
+
 function Test-HistoryMatches {
     param($Expected, $Actual)
     if ($null -eq $Actual) { return $false }
@@ -203,10 +225,10 @@ function Test-HistoryMatches {
             }
         }
         if ($null -ne $e.arguments) {
-            if (($e.arguments | ConvertTo-Json -Depth 10 -Compress) -ne ($a.arguments | ConvertTo-Json -Depth 10 -Compress)) { return $false }
+            if ((ConvertTo-Canonical $e.arguments) -ne (ConvertTo-Canonical $a.arguments)) { return $false }
         }
         if ($null -ne $e.result) {
-            if (($e.result | ConvertTo-Json -Depth 10 -Compress) -ne ($a.result | ConvertTo-Json -Depth 10 -Compress)) { return $false }
+            if ((ConvertTo-Canonical $e.result) -ne (ConvertTo-Canonical $a.result)) { return $false }
         }
     }
     return $true

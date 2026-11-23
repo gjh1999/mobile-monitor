@@ -24,7 +24,7 @@
   "receipt_log": [],
   "conflicts": [
     {
-      "detected_at": "1795442746722",
+      "detected_at": "1795442810914",
       "device": "B",
       "kind": "remote-deleted-vs-local-modified",
       "local_conflict_path": "data/readings.txt.conflict-B-v3",
@@ -42,7 +42,7 @@
   "pending_imports": [],
   "event_cache": {},
   "tool_dispatch_attempts": 0,
-  "created_at": "1795442745248",
-  "last_sync_at": "1795442747475",
+  "created_at": "1795442809447",
+  "last_sync_at": "1795442811820",
   "sync_errors": []
 }
