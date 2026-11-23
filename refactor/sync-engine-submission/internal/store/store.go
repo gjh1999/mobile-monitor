@@ -66,6 +66,9 @@ func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(s.blobDir, 0o755); err != nil {
 		return nil, err
 	}
+	if err := s.repairTruncatedLogs(); err != nil {
+		return nil, err
+	}
 	if err := s.replayLogs(); err != nil {
 		return nil, err
 	}
@@ -93,6 +96,44 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// repairTruncatedLogs drops a trailing partial line (no final '\n') from
+// each log so that a torn record after a hard kill cannot poison appends.
+func (s *Store) repairTruncatedLogs() error {
+	for _, name := range []string{"commits.jsonl", "events.jsonl"} {
+		p := filepath.Join(s.dir, name)
+		fi, err := os.Stat(p)
+		if err != nil || fi.Size() == 0 {
+			continue
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if data[len(data)-1] == '\n' {
+			continue
+		}
+		if i := lastIndexByte(data, '\n'); i >= 0 {
+			if err := os.WriteFile(p, data[:i+1], 0o644); err != nil {
+				return err
+			}
+		} else {
+			if err := os.Remove(p); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func lastIndexByte(data []byte, b byte) int {
+	for i := len(data) - 1; i >= 0; i-- {
+		if data[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
 // replayLogs rebuilds all indexes by scanning the append-only logs.
 // No snapshot file: logs are the single source of truth.
 func (s *Store) replayLogs() error {
@@ -115,9 +156,7 @@ func (s *Store) replayLogs() error {
 				s.version = rec.Version
 			}
 			s.batchIndex[rec.BatchID] = BatchInfo{CommitSeq: rec.CommitSeq, Version: rec.Version, Client: rec.Client}
-			for _, ch := range rec.Changes {
-				s.serverSeq++ // per-change seq is positional; rebuilt deterministically
-			}
+			s.serverSeq += int64(len(rec.Changes))
 		}
 	}
 	ef, err := os.Open(filepath.Join(s.dir, "events.jsonl"))
