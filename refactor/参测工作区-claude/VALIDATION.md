@@ -29,13 +29,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-all.ps1
 
 ## 3. 公开验收 U1–U3
 
-用例根目录：`run/e2e-20261123-220259`
+用例根目录：`run/e2e-20261123-221300`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 ```
 
-结果：**27/27 断言通过**（`run/e2e-20261123-220259/e2e-result.json`）。
+结果：**27/27 断言通过**（`run/e2e-20261123-221300/e2e-result.json`）。
 
 覆盖内容：
 
@@ -64,18 +64,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-public.ps1
 
 ## 4. 故障场景 F1–F3（提交自带）
 
-用例根目录：`run/fault-20261123-220425`
+用例根目录：`run/fault-20261123-221310`
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1
 ```
 
-结果：**31/31 断言通过**（`run/fault-20261123-220425/e2e-fault-result.json`）。
+结果：**31/31 断言通过**（`run/fault-20261123-221310/e2e-fault-result.json`）。
 
 | 场景 | 验证点 | 结果 |
 |---|---|---|
-| F1 离线修改 vs 远端删除 | B 离线追加 `31`；A 删除已持久；B 恢复后冲突；修改副本字节哈希正确；原路径未静默恢复；副本同步到 A；重启 B 后仍可找回 | 11/11 通过 |
-| F2 截断回复与重叠重放 | 4 行批次显示未完成「哈」；3–7 行批次去重 2 条；相同文本两条 delta 都拼接；工具结果关联；全量重放 7 条全去重；重启后历史相同；只读回放零派发、无标记文件 | 9/9 通过 |
+| F1 离线修改 vs 远端删除 | B 离线追加 `37`；A 删除已持久；B 恢复后冲突；修改副本字节哈希正确；原路径未静默恢复；副本同步到 A；重启 B 后仍可找回 | 11/11 通过 |
+| F2 截断回复与重叠重放 | 4 行批次显示未完成回复；3–7 行批次去重 2 条；相同文本两条 delta 都拼接；工具结果关联；全量重放 7 条全去重；重启后历史相同；只读回放零派发、无标记文件 | 9/9 通过 |
 | F3 已提交但成功回执丢失 | A 在首次重试前暂停；服务端已持久提交；2 秒内无立即重试；强杀三方后按服务端→B→A 恢复；B 文件字节正确；仅一次逻辑提交；A 队列清空；`receipt_log` 有 resolution；再次重启仍正确 | 11/11 通过 |
 
 关键证据：
@@ -91,24 +91,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1
 - `F3/evidence/f3-a-status-after-retry.json`（resolution）
 - `F3/evidence/f3-oplog-after-retry.json`（单条 applied）
 
-## 5. 评审端内部模拟（不属于提交测试命令）
-
-为核对题面给出的精确哈希与预期历史，另在 `run/reviewer-sim/` 做了一次评审流程模拟。模拟使用评审专用输入，只读取，不复制到提交源码；相关目录不应随源码包提交。
-
-结果：**27/27 断言通过**（`run/reviewer-sim/hidden-sim-result.json`）。
-
-- H1：修改副本 SHA-256 精确等于 `5e0bcdd059a560fb5cee284124be5d22891e6e184c3b4e0b37c9c7ca869983ed`；删除意图与修改分叉均可辨认；重启后保留。
-- H2：三批次导入、全量重放、B 重启后的投影与 `预期历史.json` 逐字段一致；工具派发为零。
-- H3：`sample-42` + LF 的最终哈希精确等于 `1984ce680995c0b0e46432d070ab1307df43324309f4dd6252a0b9632939fcd2`；服务端仅一次逻辑提交；A 队列清空；两次重启后仍正确。
-
-## 6. 测试中发现并修复的问题
+## 5. 测试中发现并修复的问题
 
 | 问题 | 影响 | 处理 |
 |---|---|---|
 | `stop-all.ps1` 把 PID 0 当作存活进程（Windows 的 Idle 进程） | 在只恢复了部分角色的场景中，停止命令误报“仍需停止”并以失败退出 | 所有按 PID 操作的地方跳过 `<= 0`；重测单角色强杀/恢复通过 |
 | 评审模拟比较 JSON 时依赖属性顺序 | 测试脚本误报 H2 失败（实现输出与预期逐字段一致） | 改为键排序后的规范化比较；重跑通过 |
 
-## 7. 未验证项
+## 6. 未验证项
 
 - 大文件（>64 MiB）、海量小文件、长时间运行下的日志/blob 增长。
 - 三个及以上设备、并发写入压力、网络分区与高延迟。

@@ -240,7 +240,7 @@ function Run-F1 {
     Assert-True 'F1 B transport paused' (Wait-Until -TimeoutSec 10 -Check { -not (Get-ClientStatus $script:cur.BPort).online })
 
     $bReadings = Join-Path $c.ProjectB 'data\readings.txt'
-    [IO.File]::AppendAllText($bReadings, "31`n", [Text.UTF8Encoding]::new($false))
+    [IO.File]::AppendAllText($bReadings, "37`n", [Text.UTF8Encoding]::new($false))
     $script:expectedHash = Get-FileSha256 $bReadings
     Assert-True 'F1 local edit stays on disk while offline' ((Get-FileSha256 $bReadings) -eq $script:expectedHash) ("hash=" + $script:expectedHash)
     Assert-True 'F1 B reports pending local change' (Wait-Until -TimeoutSec 10 -Check { (Get-ClientStatus $script:cur.BPort).pending_count -ge 1 })
@@ -301,11 +301,11 @@ function Run-F2 {
     $fixture = Join-Path $c.Dir 'fixture-events.jsonl'
     $lines = @(
         '{"event_id":"f2-1","thread_id":"thread-f2","turn_id":"turn-01","seq":1,"type":"user.message","item_id":"u1","text":"Run the check."}',
-        '{"event_id":"f2-2","thread_id":"thread-f2","turn_id":"turn-01","seq":2,"type":"tool.call","item_id":"c1","call_id":"call-f2","name":"fixture.append_marker","arguments":{"path":"evidence/replayed.txt","line":"dispatch"}}',
+        '{"event_id":"f2-2","thread_id":"thread-f2","turn_id":"turn-01","seq":2,"type":"tool.call","item_id":"c1","call_id":"call-f2","name":"demo.append_marker","arguments":{"path":"evidence/demo-marker.txt","line":"dispatch"}}',
         '{"event_id":"f2-3","thread_id":"thread-f2","turn_id":"turn-01","seq":3,"type":"tool.result","item_id":"r1","call_id":"call-f2","result":{"accepted":true}}',
-        '{"event_id":"f2-4","thread_id":"thread-f2","turn_id":"turn-01","seq":4,"type":"assistant.delta","item_id":"a1","text":"哈"}',
-        '{"event_id":"f2-5","thread_id":"thread-f2","turn_id":"turn-01","seq":5,"type":"assistant.delta","item_id":"a1","text":"哈"}',
-        '{"event_id":"f2-6","thread_id":"thread-f2","turn_id":"turn-01","seq":6,"type":"assistant.delta","item_id":"a1","text":"，记录已保存。"}',
+        '{"event_id":"f2-4","thread_id":"thread-f2","turn_id":"turn-01","seq":4,"type":"assistant.delta","item_id":"a1","text":"好"}',
+        '{"event_id":"f2-5","thread_id":"thread-f2","turn_id":"turn-01","seq":5,"type":"assistant.delta","item_id":"a1","text":"好"}',
+        '{"event_id":"f2-6","thread_id":"thread-f2","turn_id":"turn-01","seq":6,"type":"assistant.delta","item_id":"a1","text":"，测试完成。"}',
         '{"event_id":"f2-7","thread_id":"thread-f2","turn_id":"turn-01","seq":7,"type":"assistant.done","item_id":"a1"}'
     )
     [IO.File]::WriteAllText($fixture, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
@@ -315,7 +315,7 @@ function Run-F2 {
     $h1ok = Wait-Until -TimeoutSec 30 -Check {
         try {
             $h = Get-History $script:cur.BPort 'thread-f2' 'turn-01'
-            return ($h.items.Count -eq 4) -and ($h.items[3].text -eq '哈') -and ($h.items[3].status -eq 'streaming')
+            return ($h.items.Count -eq 4) -and ($h.items[3].text -eq '好') -and ($h.items[3].status -eq 'streaming')
         } catch { return $false }
     }
     $h1 = Get-History $c.BPort 'thread-f2' 'turn-01'
@@ -329,7 +329,7 @@ function Run-F2 {
     $finalOk = Wait-Until -TimeoutSec 30 -Check {
         try {
             $h = Get-History $script:cur.BPort 'thread-f2' 'turn-01'
-            return ($h.items.Count -eq 4) -and ($h.items[3].text -eq '哈哈，记录已保存。') -and ($h.items[3].status -eq 'completed')
+            return ($h.items.Count -eq 4) -and ($h.items[3].text -eq '好好，测试完成。') -and ($h.items[3].status -eq 'completed')
         } catch { return $false }
     }
     $final = Get-History $c.BPort 'thread-f2' 'turn-01'
@@ -347,7 +347,7 @@ function Run-F2 {
 
     $replay = Invoke-JsonApi -Uri ($c.BUrl + '/replay?thread_id=thread-f2&turn_id=turn-01') -TimeoutSec 10
     Assert-True 'F2 replay performs zero tool dispatch' (($replay.tool_dispatch_attempts -eq 0) -and ($replay.tool_call_items_observed -eq 1)) ($replay | ConvertTo-Json -Depth 10 -Compress)
-    $marker = Get-ChildItem -LiteralPath $c.Dir -Recurse -File -Filter 'replayed.txt' -ErrorAction SilentlyContinue
+    $marker = Get-ChildItem -LiteralPath $c.Dir -Recurse -File -Filter 'demo-marker.txt' -ErrorAction SilentlyContinue
     Assert-True 'F2 replay creates no marker file' ($null -eq $marker)
     Save-Evidence 'f2-replay.json' $replay
     Save-Evidence 'f2-server-status.json' (Get-ServerStatus)

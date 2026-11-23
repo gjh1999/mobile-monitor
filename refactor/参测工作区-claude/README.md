@@ -401,7 +401,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\e2e-fault.ps1    # F
 
 ---
 
-## 11. 退出与清理
+## 11. 源码包
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package.ps1
+```
+
+生成 `dist\sync-engine-source-<时间戳>.zip`，并在 `dist\last-package.json` 写入 ZIP 的 SHA-256 和字节数。打包只包含源码、脚本、文档和题目原件，不含 `bin/`、`run/`、`client/target/`、`_toolchain/`、`dist/` 及评审专用输入。
+
+---
+
+## 12. 退出与清理
 
 - 正常退出：`scripts\stop-all.ps1`。
 - 强制退出单个角色：`scripts\kill-one.ps1 -Role <server|a|b>`。
