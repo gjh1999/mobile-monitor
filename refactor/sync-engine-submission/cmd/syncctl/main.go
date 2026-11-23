@@ -18,7 +18,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,19 +49,60 @@ type proc struct {
 	spawnDir string
 }
 
+type cliArgs struct {
+	root    string
+	fresh   bool
+	wait    bool
+	timeout int
+	limit   int
+	pos     []string
+}
+
+// parseArgs accepts flags in any position (Go's flag package stops at the
+// first non-flag argument, which breaks `kill b --root X`).
+func parseArgs(args []string) cliArgs {
+	c := cliArgs{timeout: 30, limit: 50}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
+		case "--fresh":
+			c.fresh = true
+		case "--wait":
+			c.wait = true
+		case "--root", "--mode", "--target":
+			if i+1 < len(args) {
+				if a == "--root" {
+					c.root = args[i+1]
+				}
+				i++ // value consumed; mode/target parsed in doFault via its own scan
+			}
+		case "--timeout", "--limit", "--count":
+			if i+1 < len(args) {
+				v := 0
+				fmt.Sscanf(args[i+1], "%d", &v)
+				if a == "--timeout" {
+					c.timeout = v
+				}
+				if a == "--limit" {
+					c.limit = v
+				}
+				i++
+			}
+		default:
+			c.pos = append(c.pos, a)
+		}
+	}
+	return c
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
 	}
 	cmd := os.Args[1]
-	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
-	root := fs.String("root", "", "run root dir (default <cwd>/run)")
-	fresh := fs.Bool("fresh", false, "wipe the run root first (empty-state start)")
-	wait := fs.Bool("wait", false, "status: poll until queues drain or timeout")
-	timeout := fs.Int("timeout", 30, "seconds for --wait / converge")
-	fs.Parse(os.Args[2:])
+	c := parseArgs(os.Args[2:])
 
-	r := *root
+	r := c.root
 	if r == "" {
 		r = "run"
 	}
@@ -71,35 +111,35 @@ func main() {
 	var err error
 	switch cmd {
 	case "up":
-		err = doUp(r, *fresh)
+		err = doUp(r, c.fresh)
 	case "down":
 		err = doDown(r)
 	case "kill":
-		if fs.NArg() < 1 {
+		if len(c.pos) < 1 {
 			err = fmt.Errorf("kill requires server|a|b")
 		} else {
-			err = doKill(r, fs.Arg(0))
+			err = doKill(r, c.pos[0])
 		}
 	case "start":
-		if fs.NArg() < 1 {
+		if len(c.pos) < 1 {
 			err = fmt.Errorf("start requires server|a|b")
 		} else {
-			err = doStart(r, fs.Arg(0))
+			err = doStart(r, c.pos[0])
 		}
 	case "status":
-		err = doStatus(r, *wait, *timeout)
+		err = doStatus(r, c.wait, c.timeout)
 	case "sync":
-		if fs.NArg() < 1 {
+		if len(c.pos) < 1 {
 			err = fmt.Errorf("sync requires a|b|all")
 		} else {
-			err = doSync(fs.Arg(0))
+			err = doSync(c.pos[0])
 		}
 	case "converge":
-		err = doConverge(*timeout)
+		err = doConverge(c.timeout)
 	case "fault":
-		err = doFault(fs.Args())
+		err = doFault(os.Args[2:])
 	case "serverlog":
-		err = doServerLog(firstInt(fs.Args(), 50))
+		err = doServerLog(c.limit)
 	default:
 		usage()
 	}
@@ -117,16 +157,6 @@ fault arm --mode commit-ack|events-ack --target A|B|any [--count N] | fault clea
 serverlog [--limit N]
 `, "\n"))
 	os.Exit(2)
-}
-
-func firstInt(args []string, def int) int {
-	for i, a := range args {
-		if a == "--limit" && i+1 < len(args) {
-			n, _ := strconv.Atoi(args[i+1])
-			return n
-		}
-	}
-	return def
 }
 
 // ---------- process plumbing ----------

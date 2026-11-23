@@ -2,17 +2,41 @@
   "client_id": "A",
   "server_url": "http://127.0.0.1:8730",
   "project_dir": "D:\\VscodeProject\\codexDesk\\mobile-monitor\\refactor\\sync-engine-submission\\run-smoke\\project-a",
-  "version": 1,
-  "applied_seq": 0,
+  "version": 4,
+  "applied_seq": 5,
   "applied_event_seq": 0,
   "event_push_cursor": 6,
   "offline": false,
   "files": {
+    "during-outage.txt": {
+      "hash": "0687ab6fcb220aa1a33d952eabee96164d48d8bc5f724da8a7c748848f06bca6",
+      "size": 14
+    },
     "fault-note.txt": {
       "hash": "425cff59b53e1d2a508463576efbf4df47903bfa59c81301c76b3909be7e0f93",
       "size": 12
+    },
+    "shared.txt": {
+      "hash": "c849c0c3fd4da5d0a82c6eb8619ff14d22d68e1c3307f434dc66209551a65d64",
+      "size": 7
+    },
+    "shared.txt.conflict-from-B-683fed81": {
+      "hash": "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
+      "size": 7
     }
   },
   "pending_batches": {},
-  "conflicts": []
+  "conflicts": [
+    {
+      "path": "shared.txt",
+      "kind": "edit-edit",
+      "source_client": "B",
+      "source_batch": "batch-1795456978941-683fed81",
+      "remote_hash": "8c74b984de65dab81268cd381ab0264b0743d602aa165c6feb5b5c8ed076d553",
+      "local_hash": "c849c0c3fd4da5d0a82c6eb8619ff14d22d68e1c3307f434dc66209551a65d64",
+      "saved_as": "shared.txt.conflict-from-B-683fed81",
+      "marker": "",
+      "detected_at": "2026-11-23T18:02:59Z"
+    }
+  ]
 }
