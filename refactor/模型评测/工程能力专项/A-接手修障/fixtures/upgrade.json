@@ -1,0 +1,8 @@
+{
+  "theme": "night",
+  "subscriptions": [
+    {"provider":"calendar","workspace":"lab","topic":"task","renderer":"toast-v2","label":"任务提醒"},
+    {"provider":"deskbell","workspace":"lab","topic":"task","renderer":"toast-v2","label":"任务提醒"},
+    {"provider":"deskbell","workspace":"studio","topic":"task","renderer":"toast-v2","label":"任务提醒"}
+  ]
+}
