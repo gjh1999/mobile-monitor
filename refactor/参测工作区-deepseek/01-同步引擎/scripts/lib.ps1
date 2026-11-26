@@ -59,7 +59,10 @@ function Start-Detached {
     $psi.WorkingDirectory = $WorkDir
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-    foreach ($a in $Args) { [void]$psi.ArgumentList.Add($a) }
+    $quoted = foreach ($a in $Args) {
+        if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
+    }
+    $psi.Arguments = ($quoted -join ' ')
     $p = New-Object System.Diagnostics.Process
     $p.StartInfo = $psi
     [void]$p.Start()

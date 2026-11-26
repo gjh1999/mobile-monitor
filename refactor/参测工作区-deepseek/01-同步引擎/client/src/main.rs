@@ -857,18 +857,19 @@ fn print_history(cfg: &Config) {
 // 命令
 // ===========================================================================
 
-fn cmd_sync(cfg: &Config) {
+fn run_sync(cfg: &Config) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
     fs::create_dir_all(&cfg.state_dir).unwrap();
     if !load_online(cfg) {
         let local = scan_project(&cfg.project_dir);
         let baseline = load_baseline(cfg);
         let ops = build_file_ops(cfg, &local, &baseline);
-        println!("[{}] offline: {} pending file ops not pushed", cfg.id, ops.len());
+        lines.push(format!("[{}] offline: {} pending file ops not pushed", cfg.id, ops.len()));
         for o in &ops {
-            println!("  pending {} {}", o.kind, o.path);
+            lines.push(format!("  pending {} {}", o.kind, o.path));
         }
         write_status_file(cfg);
-        return;
+        return lines;
     }
 
     let local = scan_project(&cfg.project_dir);
@@ -899,7 +900,7 @@ fn cmd_sync(cfg: &Config) {
                                 }
                             }
                             Some("conflict") => {
-                                println!("[{}] conflict on {} (kept server version)", cfg.id, op.path);
+                                lines.push(format!("[{}] conflict on {} (kept server version)", cfg.id, op.path));
                             }
                             _ => {}
                         }
@@ -907,7 +908,7 @@ fn cmd_sync(cfg: &Config) {
                 }
             }
             Err(e) => {
-                println!("[{}] push failed: {} (ops kept pending)", cfg.id, e);
+                lines.push(format!("[{}] push failed: {} (ops kept pending)", cfg.id, e));
             }
         }
     }
@@ -922,13 +923,13 @@ fn cmd_sync(cfg: &Config) {
             save_baseline(cfg, &baseline);
             save_seq(cfg, head);
             for nte in &notes {
-                println!("[{}] {}", cfg.id, nte);
+                lines.push(format!("[{}] {}", cfg.id, nte));
             }
             let conflicts = resp.get("conflicts").map(|c| match c {
                 Json::Arr(a) => a.len(),
                 _ => 0,
             });
-            println!(
+            lines.push(format!(
                 "[{}] sync done: seq {}->{}, +{} events, {} file op(s), server conflicts={}",
                 cfg.id,
                 after,
@@ -936,11 +937,18 @@ fn cmd_sync(cfg: &Config) {
                 n,
                 ops.len(),
                 conflicts.unwrap_or(0)
-            );
+            ));
         }
-        Err(e) => println!("[{}] pull failed: {}", cfg.id, e),
+        Err(e) => lines.push(format!("[{}] pull failed: {}", cfg.id, e)),
     }
     write_status_file(cfg);
+    lines
+}
+
+fn cmd_sync(cfg: &Config) {
+    for l in run_sync(cfg) {
+        println!("{}", l);
+    }
 }
 
 fn status_text(cfg: &Config) -> String {
@@ -974,6 +982,7 @@ fn cmd_status(cfg: &Config) {
 
 fn cmd_daemon(cfg: &Config) {
     fs::create_dir_all(&cfg.state_dir).unwrap();
+    let log_path = cfg.state_dir.join("daemon.log");
     let mut last_auto = std::time::Instant::now();
     loop {
         let trigger = cfg.state_dir.join("trigger");
@@ -983,7 +992,14 @@ fn cmd_daemon(cfg: &Config) {
             if trigger.exists() {
                 let _ = fs::remove_file(&trigger);
             }
-            cmd_sync(cfg);
+            // 同步并把日志写入文件（守护进程不依赖 stdout，避免无控制台时崩溃）
+            let lines = run_sync(cfg);
+            if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                use std::io::Write;
+                for l in &lines {
+                    let _ = writeln!(f, "{}", l);
+                }
+            }
             write_status_file(cfg);
             last_auto = std::time::Instant::now();
         } else if !online {
