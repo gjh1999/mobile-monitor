@@ -1,4 +1,0 @@
-client=B online=true last_seq=3 events=0
-pending file ops: 1
-  put shared.txt.conflict-33c9e115 (base=-)
-queue NOT settled: pending ops listed above
