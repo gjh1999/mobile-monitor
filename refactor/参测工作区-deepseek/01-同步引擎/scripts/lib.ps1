@@ -53,13 +53,13 @@ function Invoke-Build {
 }
 
 function Start-Detached {
-    param([string]$Exe, [string[]]$Args, [string]$WorkDir)
+    param([string]$Exe, [string[]]$ArgList, [string]$WorkDir)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Exe
     $psi.WorkingDirectory = $WorkDir
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-    $quoted = foreach ($a in $Args) {
+    $quoted = foreach ($a in $ArgList) {
         if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
     }
     $psi.Arguments = ($quoted -join ' ')
@@ -72,7 +72,7 @@ function Start-Detached {
 function Start-SyncServer {
     New-Item -ItemType Directory -Force $Run, (Join-Path $Run 'logs') | Out-Null
     $log = Join-Path $Run 'logs\server.log'
-    $p = Start-Detached -Exe $ServerExe -Args @('-dir', $WS, '-port', "$Port", '-log', $log) -WorkDir $WS
+    $p = Start-Detached -Exe $ServerExe -ArgList @('-dir', $WS, '-port', "$Port", '-log', $log) -WorkDir $WS
     Set-Content (Join-Path $Run 'server.pid') $p.Id
     $p.Id
 }
@@ -82,7 +82,7 @@ function Start-SyncClient {
     $proj  = Join-Path $Run "project-$Id"
     $state = Join-Path $Run "state-$Id"
     New-Item -ItemType Directory -Force $proj, $state, (Join-Path $Run 'logs') | Out-Null
-    $p = Start-Detached -Exe $ClientExe -Args @($Id, $proj, $state, $ServerUrl, 'daemon') -WorkDir $WS
+    $p = Start-Detached -Exe $ClientExe -ArgList @($Id, $proj, $state, $ServerUrl, 'daemon') -WorkDir $WS
     Set-Content (Join-Path $Run "client-$Id.pid") $p.Id
     $p.Id
 }
