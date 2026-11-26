@@ -28,10 +28,15 @@ def status(config, workspace):
     rows = config.get("subscriptions", [])
     wanted = current(workspace)
     key = _key(workspace)
+    seen_current = False
     for row in rows:
         if _identity(row) == key:
-            return "current" if row == wanted else "outdated"
-    return "missing"
+            if row == wanted:
+                seen_current = True
+            else:
+                # 存在旧版记录（即使同时也有新版），报告 outdated
+                return "outdated"
+    return "current" if seen_current else "missing"
 
 
 def configure(config, workspace, enabled):
