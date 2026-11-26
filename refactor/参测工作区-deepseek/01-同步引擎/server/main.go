@@ -209,10 +209,12 @@ func (s *Server) applyOp(op FileOp, replay bool) (string, *Conflict) {
 		}
 		// deleted
 		if e.Base == op.Base {
-			s.files[op.Path] = &Entry{Status: "alive", Blob: op.Blob, Base: op.Base, Source: op.OpID, Seq: s.head}
-			return "applied", nil
+			// 删除与修改相遇：保留删除意图，把修改内容记为冲突
+			return "conflict", &Conflict{Path: op.Path, Kind: "delete_intent", Base: e.Base, Incoming: op.Blob, Source: op.OpID, Seq: s.head}
 		}
-		return "conflict", &Conflict{Path: op.Path, Kind: "delete_intent", Base: e.Base, Incoming: op.Blob, Source: op.OpID, Seq: s.head}
+		// 全新重建（客户端基线不同于被删除版本，或为全新文件）
+		s.files[op.Path] = &Entry{Status: "alive", Blob: op.Blob, Base: op.Base, Source: op.OpID, Seq: s.head}
+		return "applied", nil
 	}
 	// delete
 	if e == nil {
@@ -426,10 +428,16 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 func main() {
 	dir := flag.String("dir", ".", "工作目录（01-同步引擎）")
 	port := flag.String("port", "8787", "监听端口")
+	logfile := flag.String("log", "", "日志文件（可选）")
 	flag.Parse()
 	abs, err := filepath.Abs(*dir)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if *logfile != "" {
+		if f, err := os.OpenFile(*logfile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
+			log.SetOutput(io.MultiWriter(os.Stderr, f))
+		}
 	}
 	s := NewServer(abs)
 	if err := s.load(); err != nil {

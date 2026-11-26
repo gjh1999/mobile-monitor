@@ -26,10 +26,8 @@ function Get-CargoExe {
 function Invoke-Build {
     New-Item -ItemType Directory -Force $Bin | Out-Null
     $go = Get-GoExe
-    $tool = Split-Path -Parent (Split-Path -Parent $go)   # go/bin 的上一级（工具链根，若存在）
-    $prevCache = $env:GOCACHE
-    $prevPath  = $env:GOPATH
-    $prevTmp   = $env:GOTMPDIR
+    $tool = Split-Path -Parent (Split-Path -Parent $go)   # go/bin 的上一级（若为 go 则其父为工具链根）
+    $prevCache = $env:GOCACHE; $prevPath = $env:GOPATH; $prevTmp = $env:GOTMPDIR
     if ($tool -and (Split-Path -Leaf $tool) -eq 'go') {
         $root = Split-Path -Parent $tool
         $env:GOCACHE = Join-Path $root 'gocache'
@@ -54,14 +52,24 @@ function Invoke-Build {
     Write-Host 'build ok:' $ServerExe $ClientExe
 }
 
+function Start-Detached {
+    param([string]$Exe, [string[]]$Args, [string]$WorkDir)
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Exe
+    $psi.WorkingDirectory = $WorkDir
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    foreach ($a in $Args) { [void]$psi.ArgumentList.Add($a) }
+    $p = New-Object System.Diagnostics.Process
+    $p.StartInfo = $psi
+    [void]$p.Start()
+    return $p
+}
+
 function Start-SyncServer {
-    New-Item -ItemType Directory -Force $Run | Out-Null
-    New-Item -ItemType Directory -Force (Join-Path $Run 'logs') | Out-Null
-    $out = Join-Path $Run 'logs\server.out.log'
-    $err = Join-Path $Run 'logs\server.err.log'
-    $p = Start-Process -FilePath $ServerExe -ArgumentList @('-dir', $WS, '-port', "$Port") `
-        -WorkingDirectory $WS -RedirectStandardOutput $out -RedirectStandardError $err `
-        -WindowStyle Hidden -PassThru
+    New-Item -ItemType Directory -Force $Run, (Join-Path $Run 'logs') | Out-Null
+    $log = Join-Path $Run 'logs\server.log'
+    $p = Start-Detached -Exe $ServerExe -Args @('-dir', $WS, '-port', "$Port", '-log', $log) -WorkDir $WS
     Set-Content (Join-Path $Run 'server.pid') $p.Id
     $p.Id
 }
@@ -71,11 +79,7 @@ function Start-SyncClient {
     $proj  = Join-Path $Run "project-$Id"
     $state = Join-Path $Run "state-$Id"
     New-Item -ItemType Directory -Force $proj, $state, (Join-Path $Run 'logs') | Out-Null
-    $out = Join-Path $Run "logs\client-$Id.out.log"
-    $err = Join-Path $Run "logs\client-$Id.err.log"
-    $p = Start-Process -FilePath $ClientExe -ArgumentList @($Id, $proj, $state, $ServerUrl, 'daemon') `
-        -WorkingDirectory $WS -RedirectStandardOutput $out -RedirectStandardError $err `
-        -WindowStyle Hidden -PassThru
+    $p = Start-Detached -Exe $ClientExe -Args @($Id, $proj, $state, $ServerUrl, 'daemon') -WorkDir $WS
     Set-Content (Join-Path $Run "client-$Id.pid") $p.Id
     $p.Id
 }
@@ -104,8 +108,7 @@ function Wait-ForServer {
     return $false
 }
 
-function Get-ClientExeArg {
-    # 返回某个客户端的参数数组
+function Get-ClientArgs {
     param([string]$Id)
     $proj  = Join-Path $Run "project-$Id"
     $state = Join-Path $Run "state-$Id"
@@ -113,14 +116,12 @@ function Get-ClientExeArg {
 }
 
 function Invoke-Client {
-    # 一次性命令（不经 daemon），用于 status/history/import 等
     param([string]$Id, [string[]]$Rest)
-    $args = @(Get-ClientExeArg $Id) + $Rest
+    $args = @(Get-ClientArgs $Id) + $Rest
     & $ClientExe @args
 }
 
 function Trigger-Sync {
-    # 通过 trigger 文件请求 daemon 立即同步，等待完成
     param([string]$Id, [int]$TimeoutSec = 30)
     $state = Join-Path $Run "state-$Id"
     New-Item -ItemType Directory -Force $state | Out-Null
