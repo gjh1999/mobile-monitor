@@ -1,0 +1,11 @@
+[package]
+name = "sync-client"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "sync-client"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 2
