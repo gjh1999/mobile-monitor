@@ -867,6 +867,7 @@ fn cmd_sync(cfg: &Config) {
         for o in &ops {
             println!("  pending {} {}", o.kind, o.path);
         }
+        write_status_file(cfg);
         return;
     }
 
@@ -939,24 +940,56 @@ fn cmd_sync(cfg: &Config) {
         }
         Err(e) => println!("[{}] pull failed: {}", cfg.id, e),
     }
+    write_status_file(cfg);
 }
 
-fn cmd_status(cfg: &Config) {
+fn status_text(cfg: &Config) -> String {
     let local = scan_project(&cfg.project_dir);
     let baseline = load_baseline(cfg);
     let ops = build_file_ops(cfg, &local, &baseline);
     let seq = load_seq(cfg);
     let online = load_online(cfg);
     let events = load_event_ids(cfg).len();
-    println!("client={} online={} last_seq={} events={}", cfg.id, online, seq, events);
-    println!("pending file ops: {}", ops.len());
+    let mut out = String::new();
+    out.push_str(&format!("client={} online={} last_seq={} events={}\n", cfg.id, online, seq, events));
+    out.push_str(&format!("pending file ops: {}\n", ops.len()));
     for o in &ops {
-        println!("  {} {} (base={})", o.kind, o.path, if o.base.is_empty() { "-" } else { &o.base });
+        out.push_str(&format!("  {} {} (base={})\n", o.kind, o.path, if o.base.is_empty() { "-" } else { &o.base }));
     }
     if ops.is_empty() {
-        println!("queue settled (no pending file ops)");
+        out.push_str("queue settled (no pending file ops)\n");
     } else {
-        println!("queue NOT settled: pending ops listed above");
+        out.push_str("queue NOT settled: pending ops listed above\n");
+    }
+    out
+}
+
+fn write_status_file(cfg: &Config) {
+    let _ = fs::write(cfg.state_dir.join("status.txt"), status_text(cfg));
+}
+
+fn cmd_status(cfg: &Config) {
+    print!("{}", status_text(cfg));
+}
+
+fn cmd_daemon(cfg: &Config) {
+    fs::create_dir_all(&cfg.state_dir).unwrap();
+    let mut last_auto = std::time::Instant::now();
+    loop {
+        let trigger = cfg.state_dir.join("trigger");
+        let online = load_online(cfg);
+        let want = trigger.exists() || last_auto.elapsed().as_secs() >= 2;
+        if online && want {
+            if trigger.exists() {
+                let _ = fs::remove_file(&trigger);
+            }
+            cmd_sync(cfg);
+            write_status_file(cfg);
+            last_auto = std::time::Instant::now();
+        } else if !online {
+            write_status_file(cfg);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(400));
     }
 }
 
@@ -1010,7 +1043,7 @@ fn cmd_online(cfg: &Config, online: bool) {
 
 fn usage() -> ! {
     eprintln!("usage: sync-client <id> <project-dir> <state-dir> <server-url> <command> [args]");
-    eprintln!("  command: sync | status | import-events <file> [start end] | history | offline | online");
+    eprintln!("  command: sync | status | import-events <file> [start end] | history | offline | online | daemon");
     process::exit(2);
 }
 
@@ -1038,6 +1071,7 @@ fn main() {
     match cmd.as_str() {
         "sync" => cmd_sync(&cfg),
         "status" => cmd_status(&cfg),
+        "daemon" => cmd_daemon(&cfg),
         "history" => print_history(&cfg),
         "import-events" => {
             if args.len() < 7 {
