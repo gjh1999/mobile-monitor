@@ -1,0 +1,3 @@
+client=B online=true last_seq=1 events=0
+pending file ops: 0
+queue settled (no pending file ops)
