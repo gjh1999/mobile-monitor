@@ -2,7 +2,7 @@
 
 状态：交互、角色、工单、可见性、报告、日志、Rust 核心、项目隔离、自动审批、目标模式和 token 记录已确认；具体接口、模型标识、策略默认值与验收方案待定。尚未开发、验收或发布。本文记录 2026-11-28 的需求讨论，不代表现版澜汐已有此入口。
 
-[项目主文档](跨设备开发工作台方案.html#agent-cli) · [当前架构](ARCHITECTURE.md)
+[项目主文档](跨设备开发工作台方案.html#agent-cli) · [调度 CLI 架构](AGENT_CLI_ARCHITECTURE.md) · [开发计划](AGENT_CLI_PLAN.md) · [当前架构](ARCHITECTURE.md)
 
 ## 已确认的方向
 
